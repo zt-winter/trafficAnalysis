@@ -13,6 +13,8 @@ import(
 type FlowFeature struct {
 	srcIP string
 	dstIP string
+	srcPort string
+	dstPort string
 	meanPacketLength float64
 	variancePacketLength float64
 	meanTTL int
@@ -28,7 +30,6 @@ type PacketFeature struct {
 	//ip
 	srcIP string
 	dstIP string
-	lenIP uint8
 	flag uint8
 	ttl uint8
 	//tcp
@@ -52,35 +53,54 @@ func ExtractFeature(pcapname string, filter string){
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packets := packetSource.Packets()
-	flows := make([][]gopacket.Packet, 0) 
+	flows := make([][]PacketFeature, 0) 
+	for packet := range packets {
+		pFeature := packetFeature(packet)
+		packetsToFlow(pFeature, &flows)
+	}
+	/*
 	packetsToFlow(packets, &flows)
 	for i := 0; i < len(flows); i++ {
 		for j := range flows[i] {
 			packetFeature(flows[i][j])
 		}
 	}
+	*/
 }
 
-func packetsToFlow(packets chan gopacket.Packet, flows *[][]gopacket.Packet) {
-	flowsMap := make(map[gopacket.Endpoint]int)
-	var number int = 0
-	for packet := range packets {
-		if ip := packet.Layer(layers.LayerTypeIPv4); ip != nil {
-			ip, _ := ip.(*layers.IPv4)
-			if value, ok := flowsMap[ip.NetworkFlow().Dst()]; ok {
-				(*flows)[value] = append((*flows)[value], packet)
-			} else {
-				flowsMap[ip.NetworkFlow().Dst()] = number
-				one := []gopacket.Packet{packet}
-				*flows = append(*flows, one)
-				number = number + 1
-			}
-			fmt.Println("success")
-		}
+func fourTupleEqual(a PacketFeature, b PacketFeature) bool {
+	if a.srcIP == b.srcIP && a.dstIP == b.dstIP && 
+		a.srcPort == b.srcPort && a.dstPort == b.dstPort {
+		return true
+	} else if a.srcIP == b.dstIP && a.dstIP == b.srcIP && 
+		a.srcPort == b.dstPort && a.dstPort == b.srcPort {
+		return true
+	} else {
+		return false
 	}
 }
 
-func packetFeature(packet gopacket.Packet) {
+func packetsToFlow(pFeature PacketFeature, flows *[][]PacketFeature) {
+	length := len(*flows)
+	if length == 0 {
+		one := []PacketFeature{pFeature}
+		*flows = append(*flows, one)
+		fmt.Println("创建新的流")
+	}else{
+		for i := 0; i < length; i++ {
+			if equal := fourTupleEqual(pFeature, (*flows)[i][0]); equal {
+				(*flows)[i] = append((*flows)[i], pFeature)
+				fmt.Println("添加到已有流中")
+				return 
+			}
+		}
+		one := []PacketFeature{pFeature}
+		*flows = append(*flows, one)
+		fmt.Println("创建新的流")
+	}
+}
+
+func packetFeature(packet gopacket.Packet) PacketFeature {
 	var feature PacketFeature
 	feature.lenPacket = len(packet.Data())
 	//ip层字段提取
@@ -90,7 +110,6 @@ func packetFeature(packet gopacket.Packet) {
 		feature.srcIP = ip.SrcIP.String()
 		feature.dstIP = ip.DstIP.String()
 		feature.ttl = ip.TTL
-		feature.lenIP = ip.IHL
 	} else {
 		log.Fatal(ip)
 	}
@@ -107,8 +126,5 @@ func packetFeature(packet gopacket.Packet) {
 	} else {
 		log.Fatal(tcp)
 	}
-	if feature.srcIP != "192.168.11.206" {
-		feature.lenPayload = - feature.lenPayload
-	}
+	return feature
 }
-
