@@ -1,74 +1,15 @@
 package main
 
 import(
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
-	"github.com/google/gopacket/layers"
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/opts"
-	"log"
-	"fmt"
-	"os"
+	"trafficAnalysis/extract"
 )
-type Feature struct {
-	//
-	lenPacket int
-	//ip
-	srcIP string
-	dstIP string
-	lenIP uint8
-	flag uint8
-	ttl uint8
-	//tcp
-	srcPort uint16
-	dstPort uint16
-	seq uint32
-	ack uint32
-	win uint16
-	lenPayload int
-}		
 
 func main() {
-	//open a pcap file
-	handle, err := pcap.OpenOffline("/home/zt/normal.pcap")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// set filter
+	var pcapname string = "/home/zt/mnt/xmr/3.8/3.8-xmr-163.pcapng"
 	var filter string = "host 192.168.11.206"
-	err = handle.SetBPFFilter(filter)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	packets := packetSource.Packets()
-/*
-	//test
-	for i := 0; i < 5; i++ {
-		packet := <- packets
-		tcpLayer := packet.Layer(layers.LayerTypeTCP)
-		fmt.Println(tcpLayer)
-		fmt.Println("length: ", len(tcpLayer.LayerPayload()))
-		fmt.Println("\n")
-	}
-*/
-/*
-	var features []Feature
-	for packet := range packets {
-		fmt.Println(reflect.TypeOf(packet))
-		features = append(features, packetFeature(packet))
-	}
-*/
-	var features []Feature
-	var packet gopacket.Packet
-	for i := 0; i < 1000; i++ {
-		packet = <- packets
-		features = append(features, packetFeature(packet))
-	}
-
+	extract.ExtractFeature(pcapname, filter)
 	//包长累计变化图
+	/*
 	bar := charts.NewBar()
 	bar.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
 		Title:		"包长分布图",
@@ -77,41 +18,12 @@ func main() {
 		AddSeries("SSH-(aes-gcm-256)-xmr", generateItem(features))
 	f, _ := os.Create("bar.html")
 	bar.Render(f)
+	*/
 	//包长分布图
 		
 }
 
-func packetFeature(packet gopacket.Packet) Feature {
-	var feature Feature
-	fmt.Println(len(packet.Data()))
-	feature.lenPacket = len(packet.Data())
-	//ip层字段提取
-	ipLayer := packet.Layer(layers.LayerTypeIPv4)
-	ip, _ := ipLayer.(*layers.IPv4)
-	if ip!= nil {
-		feature.srcIP = ip.SrcIP.String()
-		feature.dstIP = ip.DstIP.String()
-		feature.ttl = ip.TTL
-		feature.lenIP = ip.IHL
-	}
-	//tcp层字段提取
-	tcpLayer := packet.Layer(layers.LayerTypeTCP)
-	tcp, _ := tcpLayer.(*layers.TCP)
-	if tcp != nil {
-		feature.srcPort = (uint16)(tcp.SrcPort)
-		feature.dstPort = (uint16)(tcp.DstPort)
-		feature.seq = tcp.Seq
-		feature.ack = tcp.Ack
-		feature.win = tcp.Window
-		feature.lenPayload = len(tcp.LayerPayload())
-	}
-	fmt.Println(feature.srcIP)
-	if feature.srcIP != "192.168.11.206" {
-		feature.lenPayload = - feature.lenPayload
-	}
-	return feature
-}
-
+/*
 func generateItem(features []Feature) []opts.BarData {
 	items := make([]opts.BarData, 0)
 	nums := make([]int, 11)
@@ -152,3 +64,4 @@ func generateItem(features []Feature) []opts.BarData {
 	}
 	return items
 }
+*/
