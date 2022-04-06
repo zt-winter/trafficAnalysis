@@ -47,7 +47,7 @@ type PacketFeature struct {
 }		
 
 //按制定筛选规则，过滤流量，并提取流量中特征
-func ExtractFeature(pcapname string, filter string) ([][]PacketFeature, []FlowFeature) {
+func ExtractFeature(pcapname string, filter string, featurename string) ([][]PacketFeature, []FlowFeature) {
 
 
 	//打开pcap数据包
@@ -76,8 +76,7 @@ func ExtractFeature(pcapname string, filter string) ([][]PacketFeature, []FlowFe
 	}
 
 	//解析后的结果保存到feature下对应的文件目录
-	featureFilename := "/home/zt/code/go/src/trafficAnalysis/feature/xmrclash加密"
-	featureFile, err := os.OpenFile(featureFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	featureFile, err := os.OpenFile(featurename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
