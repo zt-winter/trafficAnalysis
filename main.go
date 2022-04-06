@@ -4,9 +4,16 @@ import(
 	"trafficAnalysis/extract"
 )
 
+type config struct {
+	readPcapFile string
+	filter string
+	writeFeatureFloder string
+}
+	
+
 func main() {
-	var pcapname string = "/home/zt/mnt/xmr/3.8/3.8-xmr-163.pcapng"
-	var filter string = "host 192.168.11.206"
+	var pcapname string = "/home/zt/data/3.9/3.9-miner.arch-miner.proxy.clash-xmrig-XMR.pcapng"
+	var filter string = "tcp"
 	extract.ExtractFeature(pcapname, filter)
 	//包长累计变化图
 	/*

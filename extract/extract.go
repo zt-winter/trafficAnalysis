@@ -47,8 +47,11 @@ type PacketFeature struct {
 }		
 
 //按制定筛选规则，过滤流量，并提取流量中特征
-func ExtractFeature(pcapname string, filter string){
-		handle, err := pcap.OpenOffline(pcapname)
+func ExtractFeature(pcapname string, filter string) ([][]PacketFeature, []FlowFeature) {
+
+
+	//打开pcap数据包
+	handle, err := pcap.OpenOffline(pcapname)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,7 +62,9 @@ func ExtractFeature(pcapname string, filter string){
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packets := packetSource.Packets()
+
 	flows := make([][]PacketFeature, 0) 
+
 	for packet := range packets {
 		pFeature := packetFeature(packet)
 		packetsToFlow(pFeature, &flows)
@@ -69,23 +74,24 @@ func ExtractFeature(pcapname string, filter string){
 	for i := 0; i < len(flows); i++ {
 		flowFeature(&flows[i], &fFeatures[i])
 	}
-	/*
-	packetsToFlow(packets, &flows)
-	for i := 0; i < len(flows); i++ {
-		for j := range flows[i] {
-			packetFeature(flows[i][j])
-		}
+
+	//解析后的结果保存到feature下对应的文件目录
+	featureFilename := "/home/zt/code/go/src/trafficAnalysis/feature/xmrclash加密"
+	featureFile, err := os.OpenFile(featureFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
 	}
-	*/
+	saveFeature(featureFile, &flows)
+	
+
+	return flows, fFeatures
 }
 
 // 按照四元组比较两个数据包是否是同一条双向流
 func fourTupleEqual(a PacketFeature, b PacketFeature) bool {
-	if a.srcIP == b.srcIP && a.dstIP == b.dstIP && 
-		a.srcPort == b.srcPort && a.dstPort == b.dstPort {
+	if a.srcIP == b.srcIP && a.dstIP == b.dstIP {
 		return true
-	} else if a.srcIP == b.dstIP && a.dstIP == b.srcIP && 
-		a.srcPort == b.dstPort && a.dstPort == b.srcPort {
+	} else if a.srcIP == b.dstIP && a.dstIP == b.srcIP {
 		return true
 	} else {
 		return false
@@ -94,15 +100,14 @@ func fourTupleEqual(a PacketFeature, b PacketFeature) bool {
 
 // 根据数据包的四元组，将数据包分成流
 func packetsToFlow(pFeature PacketFeature, flows *[][]PacketFeature) {
-	f, err := os.OpenFile("/home/zt/code/go/trafficAnalysis/extract/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile("/home/zt/code/go/src/trafficAnalysis/extract/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
-		fmt.Println("sdfag")
 	}
 	defer f.Close()
 	w := bufio.NewWriter(f)
 	length := len(*flows)
-	fmt.Println(len(*flows))
+	w.WriteString(strconv.Itoa(length))
 	if length == 0 {
 		one := []PacketFeature{pFeature}
 		*flows = append(*flows, one)
@@ -115,7 +120,7 @@ func packetsToFlow(pFeature PacketFeature, flows *[][]PacketFeature) {
 				(*flows)[i] = append((*flows)[i], pFeature)
 				w.WriteString("添加到对应的流中: ")
 				w.WriteString(strconv.Itoa(i))
-				w.WriteString("\t当前的总共有多少条流: ")
+			w.WriteString("\t当前的总共有多少条流: ")
 				w.WriteString(strconv.Itoa(len(*flows)))
 				w.WriteString("\n")
 				w.Flush()
@@ -171,7 +176,7 @@ func flowFeature(flow *[]PacketFeature, fFeature *FlowFeature) {
 	for i := 0; i < length; i++ {
 		packetSize = packetSize + uint64((*flow)[i].lenPacket)
 	}
-	//meanPacketLength := float64(packetSize/uint64(length))
+	meanPacketLength := float64(packetSize/uint64(length))
 
 	//获取包方差
 	var varPacketLength float64
@@ -179,11 +184,23 @@ func flowFeature(flow *[]PacketFeature, fFeature *FlowFeature) {
 		varPacketLength = math.Pow(float64((*flow)[i].lenPacket), 2)
 	}
 	varPacketLength = varPacketLength/float64(length)
-	/*
 	fmt.Println(length)
 	fmt.Println((*flow)[0].srcIP, "\t", (*flow)[0].dstIP)
 	fmt.Println(meanPacketLength)
 	fmt.Println(varPacketLength)
 	fmt.Println("")
-	*/
+}
+
+func saveFeature(file *os.File, features *[][]PacketFeature) {
+	defer file.Close()
+	w := bufio.NewWriter(file)
+	for i := 0; i < len(*features); i++ {
+		for j := 0; j < len((*features)[i]); j++ {
+			w.WriteString((*features)[i][j].srcIP + "\t")
+			w.WriteString((*features)[i][j].dstIP + "\t")
+			w.WriteString(strconv.Itoa((*features)[i][j].lenPacket) + "\t")
+			w.WriteString(strconv.Itoa((*features)[i][j].lenPayload) + "\n")
+		}
+	}
+	w.Flush()
 }
