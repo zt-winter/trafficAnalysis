@@ -16,6 +16,7 @@ var (
 	snapshot_len int32 = 1024
 	promiscous bool = false
 	err error
+	conn net.Conn
 	timeout time.Duration = 30 * time.Second
 	handle *pcap.Handle
 	buffer gopacket.SerializeBuffer
@@ -23,6 +24,13 @@ var (
 )
 
 func main() {
+	//建立链接
+	conn, err = net.Dial("tcp", "51.178.36.149:13333")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("connect sucess")
+
 	//获取目标内容
 	fHandle, err := pcap.OpenOffline("/home/zt/data/3.26/login.pcap")
 	if err != nil {
@@ -35,16 +43,15 @@ func main() {
 	if tcpLayer != nil {
 		fmt.Println(string(tcpLayer.LayerPayload()))
 	}
-
-	// open device
-	handle, err = pcap.OpenLive(device, snapshot_len, promiscous, timeout)  
-	if err != nil {
-		defer handle.Close()
-	}
-
-	_, err = net.Dial("tcp", "www.baidu.com:80")
+	content := tcpLayer.LayerPayload()
+	
+	_, err = conn.Write(content) 
 	if err != nil {
 		log.Fatal(err)
+		conn.Close()
 	}
-	fmt.Println("connect success")
+	buf := make([]byte, 1024)
+	_, err = conn.Read(buf)
+	conn.Close()
+	fmt.Println(string(buf))
 }
