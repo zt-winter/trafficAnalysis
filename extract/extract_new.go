@@ -3,6 +3,7 @@ package extract
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -44,9 +45,11 @@ type packetFeature struct {
 	ack uint32
 	win uint16
 	lenPayload int
-}		
+	//tls
+	cipher []layers.TLSChangeCipherSpecRecord
+	handShake []layers.TLSHandshakeRecord
+}
 
-var packetChannel = make(chan packetFeature, 100)
 
 //按制定筛选规则，过滤流量，并提取流量中特征
 func ExtractFeature(config config.CONFIG) ([][]packetFeature, []FlowFeature) {
@@ -160,6 +163,23 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	} else {
 		log.Fatal(tcp)
 	}
+
+	//tls层字段提取
+	if packet.ApplicationLayer() != nil {
+		var tls layers.TLS
+		var decoded []gopacket.LayerType
+		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeTLS, &tls)
+		parser.DecodeLayers(packet.ApplicationLayer().LayerContents(), &decoded)
+		for _, layerTpye := range decoded {
+			switch layerTpye {
+			case layers.LayerTypeTLS:
+				feature.cipher = tls.ChangeCipherSpec
+				feature.handShake = tls.Handshake
+				fmt.Println(feature.cipher, feature.handShake)
+			}
+		}
+	}
+
 	return feature
 }
 
