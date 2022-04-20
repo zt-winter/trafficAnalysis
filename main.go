@@ -1,14 +1,16 @@
 package main
 
-import(
-	"trafficAnalysis/extract"
+import (
+	"runtime/pprof"
+	"os"
 	"trafficAnalysis/config"
+	"trafficAnalysis/extract"
 )
 
 
 func main() {
+	pprof.StartCPUProfile(os.Stdout)
+	defer pprof.StopCPUProfile()
 	config := config.ReadConfig()
-	extract.ExtractFeature(config.PacpFile, config.Filter, config.FeatureFile)
+	extract.ExtractFeature(config)
 }
-
-

@@ -2,15 +2,16 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"log"
 )
 
 //后续补充
 type CONFIG struct {
-	PacpFile string `json:"pcap_file"`
+	Method string `json:"method"`
+	Device string `json:"device"`
 	Filter string `json:"filter"`
+	PacpFile string `json:"pcap_file"`
 	FeatureFile string `json:"feature_file"`
 }
 
@@ -23,9 +24,7 @@ func ReadConfig() CONFIG {
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&config)
 	if err != nil {
-		fmt.Println("error")
 		log.Fatal(err)
 	}
-	fmt.Println(config)
 	return config
 }

@@ -1,5 +1,6 @@
 {
-	"pcap_file": "/home/zt/data/3.9/3.9-miner.arch-miner.proxy.clash-xmrig-XMR.pcapng",
+	"method": "offline",
 	"filter": "tcp",
-	"feature_file": "/home/zt/test_feature_file"
+	"pcap_file": "/home/zt/test.pcapng",
+	"feature_file": "/home/zt/test_goroutine"
 }
