@@ -1,6 +1,6 @@
 {
 	"method": "offline",
 	"filter": "tcp",
-	"pcap_file": "/home/zt/no_proxy_test.pcapng",
+	"pcap_file": "/home/zt/tls.pcapng",
 	"feature_file": "/home/zt/no_proxy_test"
 }

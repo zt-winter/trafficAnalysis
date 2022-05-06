@@ -2,8 +2,6 @@ package extract
 
 import (
 	"bufio"
-	"bytes"
-	"fmt"
 	"log"
 	"math"
 	"net"
@@ -17,6 +15,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 )
+
 type FlowFeature struct {
 	srcIP string
 	dstIP string
@@ -28,10 +27,14 @@ type FlowFeature struct {
 	meanTimeInterval float64
 	duration float64
 	packetLengthSequence []int
+	//tls
+	cipher []layers.TLSChangeCipherSpecRecord
+	handShake []layers.TLSHandshakeRecord
 }
 
 
 type packetFeature struct {
+	timestamp time.Time
 	lenPacket int
 	//ip
 	srcIP net.IP
@@ -45,9 +48,6 @@ type packetFeature struct {
 	ack uint32
 	win uint16
 	lenPayload int
-	//tls
-	cipher []layers.TLSChangeCipherSpecRecord
-	handShake []layers.TLSHandshakeRecord
 }
 
 
@@ -109,20 +109,9 @@ func ExtractFeature(config config.CONFIG) ([][]packetFeature, []FlowFeature) {
 	return flows, fFeatures
 }
 
-// 按照四元组比较两个数据包是否是同一条双向流
-func fourTupleEqual(a packetFeature, b packetFeature) bool {
-	if bytes.Equal(a.srcIP, b.srcIP) && bytes.Equal(a.dstIP, b.dstIP){
-		return true
-	} else if bytes.Equal(a.srcIP, b.dstIP) && bytes.Equal(a.dstIP, b.srcIP) {
-		return true
-	} else {
-		return false
-	}
-}
-
 // 根据数据包的四元组，将数据包分成流
 func packetsToFlow(pFeature packetFeature, mapAddress map[string]int,flows *[][]packetFeature) {
-	newAddress := tool.CombineAddress(pFeature.srcIP, pFeature.dstIP)
+	newAddress := tool.CombineIPPort(pFeature.srcIP, pFeature.srcPort, pFeature.dstIP, pFeature.dstPort)
 	value := tool.SearchAddress(newAddress, mapAddress)
 	if value == -1 {
 		oneFlow := []packetFeature{pFeature}
@@ -138,6 +127,7 @@ func packetsToFlow(pFeature packetFeature, mapAddress map[string]int,flows *[][]
 func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	var feature packetFeature
 	feature.lenPacket = len(packet.Data())
+	feature.timestamp = packet.Metadata().CaptureInfo.Timestamp
 
 	//ip层字段提取
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
@@ -162,22 +152,6 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 		feature.lenPayload = len(tcp.LayerPayload())
 	} else {
 		log.Fatal(tcp)
-	}
-
-	//tls层字段提取
-	if packet.ApplicationLayer() != nil {
-		var tls layers.TLS
-		var decoded []gopacket.LayerType
-		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeTLS, &tls)
-		parser.DecodeLayers(packet.ApplicationLayer().LayerContents(), &decoded)
-		for _, layerTpye := range decoded {
-			switch layerTpye {
-			case layers.LayerTypeTLS:
-				feature.cipher = tls.ChangeCipherSpec
-				feature.handShake = tls.Handshake
-				fmt.Println(feature.cipher, feature.handShake)
-			}
-		}
 	}
 
 	return feature
