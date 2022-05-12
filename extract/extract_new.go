@@ -2,6 +2,7 @@ package extract
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -17,17 +18,17 @@ import (
 )
 
 type FlowFeature struct {
-	srcIP string
-	dstIP string
-	srcPort net.IP
-	dstPort net.IP
+	cIP string
+	sIP string
+	cPort net.IP
+	sPort net.IP
 	meanPacketLength float64
 	varPacketLength float64
 	meanTTL int
 	meanTimeInterval float64
 	duration float64
+
 	packetLengthSequence []int
-	//tls
 	cipher []layers.TLSChangeCipherSpecRecord
 	handShake []layers.TLSHandshakeRecord
 }
@@ -48,6 +49,12 @@ type packetFeature struct {
 	ack uint32
 	win uint16
 	lenPayload int
+	//tls
+	tlsVersion int
+	tlsType []int
+	handShakeType []int
+	handShakeTypeLen []int
+	servername string
 }
 
 
@@ -154,6 +161,80 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 		log.Fatal(tcp)
 	}
 
+	//tls层字段提取
+	tls := tcp.Payload
+	if len(tls) < 6 {
+		return  feature
+	}
+	if tls[0] == 22 {
+		lengthH, err := tool.NetBytesToInt(tls[3:5], 2)
+		if err != nil {
+			log.Fatal("error 172")
+		}
+		handShake := tls[5:]
+		if len(handShake) != lengthH {
+			return feature
+		}
+		switch tls[2] {
+		case 1:
+			feature.tlsVersion = 0
+		case 2:
+			feature.tlsVersion = 1
+		case 3:
+			feature.tlsVersion = 2
+		case 4:
+			feature.tlsVersion = 3
+		default:
+		}
+		for j := 0; j < lengthH; {
+			handShakeType := 0
+			handShakeType, err = tool.NetBytesToInt(tls[5:6], 1)
+			if err != nil {
+				log.Fatal("error 191")
+			}
+			feature.handShakeType = append(feature.handShakeType, handShakeType)
+
+			handShakeTypeLen := 0
+			handShakeTypeLen, err = tool.NetBytesToInt(tls[j+6:j+9], 3)
+			if err != nil {
+				log.Fatal("error 199")
+			}
+			j = j + 4 + handShakeTypeLen
+			feature.handShakeTypeLen = append(feature.handShakeTypeLen, handShakeTypeLen)
+			switch handShakeType {
+			case 1:{
+				sessionLen := 0
+				sessionLen, err = tool.NetBytesToInt(tls[43:44], 1)
+				chiperSuitLen := 0
+				chiperSuitLen, err = tool.NetBytesToInt(tls[44+sessionLen:46+sessionLen], 2)
+				extensionLen := 0
+				extensionLen, err = tool.NetBytesToInt(tls[(48+chiperSuitLen+sessionLen):(50+chiperSuitLen+sessionLen)], 2)
+				position := 50 + chiperSuitLen + sessionLen
+				extensionNum := 0
+				for i := 0; i < extensionLen; {
+					extensionType := 0
+					extensionType, err = tool.NetBytesToInt(tls[position:position+2], 2)
+					oneExtensionLen := 0
+					switch extensionType {
+					//servername
+					case 0:
+						oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
+						servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], oneExtensionLen)
+						feature.servername = servername
+					default:
+						oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
+					}
+					extensionNum++
+					i = i + 4 + oneExtensionLen
+					position = position + 4 + oneExtensionLen
+				}
+				fmt.Println(len(feature.servername))
+			}
+			default:{
+			}
+			}
+		}
+	}
 	return feature
 }
 
@@ -162,19 +243,18 @@ func flowFeature(flow *[]packetFeature, fFeature *FlowFeature) {
 	length := len(*flow)
 
 	//获取平均包大小
-	var packetSize uint64
-	for i := 0; i < length; i++ {
-		packetSize = packetSize + uint64((*flow)[i].lenPacket)
-	}
-	meanPacketLength := float64(packetSize/uint64(length))
-
 	//获取包方差
+	var packetSize uint64
 	var varPacketLength float64
 	for i := 0; i < length; i++ {
+		packetSize = packetSize + uint64((*flow)[i].lenPacket)
 		varPacketLength = math.Pow(float64((*flow)[i].lenPacket), 2)
 	}
+	meanPacketLength := float64(packetSize/uint64(length))
 	varPacketLength = varPacketLength/float64(length)
 	varPacketLength = meanPacketLength
+
+	
 }
 
 func saveFeature(file *os.File, features *[][]packetFeature) {
