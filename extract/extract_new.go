@@ -51,10 +51,11 @@ type packetFeature struct {
 	lenPayload int
 	//tls
 	tlsVersion int
-	tlsType []int
+	tlsType int
 	handShakeType []int
 	handShakeTypeLen []int
 	servername string
+	data int
 }
 
 
@@ -95,9 +96,13 @@ func ExtractFeature(config config.CONFIG) ([][]packetFeature, []FlowFeature) {
 
 	//遍历数据包，对每个数据包做解析
 
+	test := 1
 	for packet := range packets {
+		fmt.Println(test)
 		pFeature := extractPacketFeature(packet)
 		packetsToFlow(pFeature, mapAddress, &flows)
+		test = test + 1
+		fmt.Println()
 	}
 
 	fFeatures := make([]FlowFeature, len(flows))
@@ -163,77 +168,35 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 
 	//tls层字段提取
 	tls := tcp.Payload
-	if len(tls) < 6 {
-		return  feature
-	}
-	if tls[0] == 22 {
-		lengthH, err := tool.NetBytesToInt(tls[3:5], 2)
-		if err != nil {
-			log.Fatal("error 172")
-		}
-		handShake := tls[5:]
-		if len(handShake) != lengthH {
-			return feature
-		}
-		switch tls[2] {
-		case 1:
-			feature.tlsVersion = 0
-		case 2:
-			feature.tlsVersion = 1
-		case 3:
-			feature.tlsVersion = 2
-		case 4:
-			feature.tlsVersion = 3
-		default:
-		}
-		for j := 0; j < lengthH; {
-			handShakeType := 0
-			handShakeType, err = tool.NetBytesToInt(tls[5:6], 1)
-			if err != nil {
-				log.Fatal("error 191")
-			}
-			feature.handShakeType = append(feature.handShakeType, handShakeType)
+	var err error
+	totoalLen := len(tls)
 
-			handShakeTypeLen := 0
-			handShakeTypeLen, err = tool.NetBytesToInt(tls[j+6:j+9], 3)
-			if err != nil {
-				log.Fatal("error 199")
-			}
-			j = j + 4 + handShakeTypeLen
-			feature.handShakeTypeLen = append(feature.handShakeTypeLen, handShakeTypeLen)
-			switch handShakeType {
-			case 1:{
-				sessionLen := 0
-				sessionLen, err = tool.NetBytesToInt(tls[43:44], 1)
-				chiperSuitLen := 0
-				chiperSuitLen, err = tool.NetBytesToInt(tls[44+sessionLen:46+sessionLen], 2)
-				extensionLen := 0
-				extensionLen, err = tool.NetBytesToInt(tls[(48+chiperSuitLen+sessionLen):(50+chiperSuitLen+sessionLen)], 2)
-				position := 50 + chiperSuitLen + sessionLen
-				extensionNum := 0
-				for i := 0; i < extensionLen; {
-					extensionType := 0
-					extensionType, err = tool.NetBytesToInt(tls[position:position+2], 2)
-					oneExtensionLen := 0
-					switch extensionType {
-					//servername
-					case 0:
-						oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
-						servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], oneExtensionLen)
-						feature.servername = servername
-					default:
-						oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
-					}
-					extensionNum++
-					i = i + 4 + oneExtensionLen
-					position = position + 4 + oneExtensionLen
-				}
-				fmt.Println(len(feature.servername))
-			}
-			default:{
-			}
-			}
+	if len(tls) < 6 {
+		return feature
+	}
+	ressemableUDP := false
+	for oneLayerLen := 0; oneLayerLen < totoalLen; {
+		lengthH := 0
+		lengthH, err = tool.NetBytesToInt(tls[oneLayerLen+3:oneLayerLen+5], 2)
+		if oneLayerLen + lengthH + 5 > totoalLen {
+			break
 		}
+		if err != nil {
+			log.Fatal("error 178")
+		}
+		switch tls[oneLayerLen] {
+		case 20:
+		case 22: 
+			handShakeProcess(tls[oneLayerLen:], &feature)
+		case 23: 
+		default:
+			ressemableUDP =  true
+		}
+		if ressemableUDP {
+			break
+		}
+		
+		oneLayerLen = lengthH + oneLayerLen + 5
 	}
 	return feature
 }
@@ -269,4 +232,55 @@ func saveFeature(file *os.File, features *[][]packetFeature) {
 		}
 	}
 	w.Flush()
+}
+
+func handShakeProcess(tls []byte, feature *packetFeature) {
+	lengthH := len(tls)
+	var err error
+	for j := 0; j < lengthH; {
+		handShakeType := 0
+		handShakeType, err = tool.NetBytesToInt(tls[0:1], 1)
+		if err != nil {
+			log.Fatal("error 191")
+		}
+		feature.handShakeType = append(feature.handShakeType, handShakeType)
+		handShakeTypeLen := 0
+		handShakeTypeLen, err = tool.NetBytesToInt(tls[j+1:j+4], 3)
+		if err != nil {
+			log.Fatal("error 199")
+		}
+		j = j + 4 + handShakeTypeLen
+		feature.handShakeTypeLen = append(feature.handShakeTypeLen, handShakeTypeLen)
+		switch handShakeType {
+		case 1:{
+			sessionLen := 0
+			sessionLen, err = tool.NetBytesToInt(tls[38:39], 1)
+
+			chiperSuitLen := 0
+			chiperSuitLen, err = tool.NetBytesToInt(tls[39+sessionLen:41+sessionLen], 2)
+			extensionLen := 0
+			extensionLen, err = tool.NetBytesToInt(tls[(43+chiperSuitLen+sessionLen):(45+chiperSuitLen+sessionLen)], 2)
+			position := 45 + chiperSuitLen + sessionLen
+			extensionNum := 0
+			for i := 0; i < extensionLen; {
+				extensionType := 0
+				extensionType, err = tool.NetBytesToInt(tls[position:position+2], 2)
+				oneExtensionLen := 0
+				switch extensionType {
+				//servername
+				case 0:
+					oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
+					servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], oneExtensionLen)
+					feature.servername = servername
+				default:
+					oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
+				}
+				extensionNum++
+				i = i + 4 + oneExtensionLen
+				position = position + 4 + oneExtensionLen
+			}
+			fmt.Println(len(feature.servername))
+		}
+		}
+	}
 }
