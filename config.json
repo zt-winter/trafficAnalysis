@@ -1,6 +1,6 @@
 {
 	"method": "offline",
 	"filter": "tcp",
-	"pcap_file": "/home/zt/tls.pcapng",
+	"pcap_file": "/home/zt/data/3.20/3.20-miner.arch-miner.pool.ssl-xmrig-XMR.pcap",
 	"feature_file": "/home/zt/no_proxy_test"
 }

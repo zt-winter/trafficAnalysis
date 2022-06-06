@@ -1,5 +1,0 @@
-{
-	"pcap_file": "/home/zt/test.pcapng",
-	"filter": "tcp",
-	"feature_file": "/home/zt/test"
-}
