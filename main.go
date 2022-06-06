@@ -14,5 +14,5 @@ func main() {
 	defer pprof.StopCPUProfile()
 	*/
 	config := ReadConfig()
-	ExtractFeature(config)
+	extractFeature(config)
 }

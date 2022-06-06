@@ -58,7 +58,7 @@ type packetFeature struct {
 
 
 //按制定筛选规则，过滤流量，并提取流量中特征
-func ExtractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
+func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 	var packetSource *gopacket.PacketSource	
 
 	//根据配置文件选择在线解析或者离线解析
