@@ -66,10 +66,13 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 	if config.Method == "offline" {
 		handle, err := pcap.OpenOffline(config.PacpFile)
 		if err != nil {
+			fmt.Println("67 lines")
 			log.Fatal(err)
 		}
+		fmt.Println(config.Filter)
 		err = handle.SetBPFFilter(config.Filter)
 		if err != nil {
+			fmt.Println("setbpffilter")
 			log.Fatal(err)
 		}
 		packetSource = gopacket.NewPacketSource(handle, handle.LinkType())
@@ -78,8 +81,10 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 	if config.Method == "online" {
 		handle, err := pcap.OpenLive(config.Device, 2048, true, 30*time.Second)
 		if err != nil {
+			fmt.Println(80)
 			log.Fatal(err)
 		}
+		fmt.Println(config.Filter)
 		err = handle.SetBPFFilter(config.Filter)
 		if err != nil {
 			log.Fatal(err)
@@ -105,15 +110,11 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 
 	fFeatures := make([]FlowFeature, len(flows))
 	for i := 0; i < len(flows); i++ {
-		go flowFeature(&flows[i], &fFeatures[i])
+		flowFeature(&flows[i], &fFeatures[i])
 	}
 
 	//解析后的结果保存到feature下对应的文件目录
-	featureFile, err := os.OpenFile(config.FeatureFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	saveFeature(featureFile, &flows)
+	saveFeature(config.PacpFile, &flows)
 	
 
 	return flows, fFeatures
@@ -121,13 +122,18 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 
 // 根据数据包的四元组，将数据包分成流
 func packetsToFlow(pFeature packetFeature, mapAddress map[string]int,flows *[][]packetFeature) {
-	newAddress := tool.CombineIPPort(pFeature.srcIP, pFeature.srcPort, pFeature.dstIP, pFeature.dstPort)
+	one := new(packetFeature)
+	one.srcIP = pFeature.srcIP
+	one.dstIP = pFeature.dstIP
+	one.srcPort = pFeature.srcPort
+	one.dstPort = pFeature.dstPort
+	newAddress := tool.CombineIPPort(one.srcIP, one.srcPort, one.dstIP, one.dstPort)
 	value := tool.SearchAddress(newAddress, mapAddress)
 	if value == -1 {
-		oneFlow := []packetFeature{pFeature}
-		(*flows) = append((*flows), oneFlow)
 		nums := len(*flows)
-		mapAddress[string(newAddress)] = nums-1
+		mapAddress[string(newAddress)] = nums
+		oneflow := []packetFeature{pFeature}
+		*flows = append(*flows, oneflow)
 	} else {
 		(*flows)[value] = append((*flows)[value], pFeature)
 	}
@@ -221,14 +227,24 @@ func flowFeature(flow *[]packetFeature, fFeature *FlowFeature) {
 	
 }
 
-func saveFeature(file *os.File, features *[][]packetFeature) {
-	defer file.Close()
-	w := bufio.NewWriter(file)
+func saveFeature(name string, features *[][]packetFeature) {
+	fHandle, err := os.OpenFile(name+"S", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Println("saveFeature file error")
+	}
+	defer fHandle.Close()
+	w := bufio.NewWriter(fHandle)
 	for i := 0; i < len(*features); i++ {
 		for j := 0; j < len((*features)[i]); j++ {
+			time := (*features)[i][j].timestamp
+			if j == 0 {
+				one := time.Sub(time)
+				w.WriteString(strconv.FormatFloat(one.Seconds(), 'f', 4, 64) + "\t")
+			} else if j > 0 {
+				w.WriteString(strconv.FormatFloat(time.Sub((*features)[i][j-1].timestamp).Seconds(), 'f', 4, 64) + "\t")
+			}
 			w.WriteString((*features)[i][j].srcIP.String() + "\t")
 			w.WriteString((*features)[i][j].dstIP.String() + "\t")
-			w.WriteString(strconv.Itoa((*features)[i][j].lenPacket) + "\t")
 			w.WriteString(strconv.Itoa((*features)[i][j].lenPayload) + "\n")
 		}
 	}

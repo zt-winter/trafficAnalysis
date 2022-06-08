@@ -50,20 +50,30 @@ func CombineIPPort(addressA net.IP, addressAPort uint16, addressB net.IP, addres
 		} else {
 			if i == lengthA - 1 {
 				flag = true
+				break
 			} else if i == lengthB - 1 {
 				flag = false
+				break
 			}
 		}
 	}
-	var newAddress []byte
+	newAddress := make([]byte, 0)
+	fmt.Println(addressAPort, addressBPort)
+	fmt.Println(uint16ToBytes(addressAPort), uint16ToBytes(addressBPort))
 	if flag {
-		newAddress = append(addressA, uint16ToBytes(addressAPort)...)
-		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
-	} else {
-		newAddress = append(addressB, uint16ToBytes(addressBPort)...)
 		newAddress = append(newAddress, addressA...)
 		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
+		newAddress = append(newAddress, addressB...)
+		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
+		fmt.Println("true")
+		fmt.Println(newAddress)
+	} else {
+		newAddress = append(newAddress, addressB...)
+		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
+		newAddress = append(newAddress, addressA...)
+		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
+		fmt.Println("false")
+		fmt.Println(newAddress)
 	}
 	return newAddress
 }

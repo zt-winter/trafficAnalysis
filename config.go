@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"os"
+	"fmt"
 	"log"
+	"os"
 )
 
 //后续补充
@@ -11,11 +12,10 @@ type CONFIG struct {
 	Method string `json:"method"`
 	Device string `json:"device"`
 	Filter string `json:"filter"`
-	PacpFile string `json:"pcap_file"`
-	FeatureFile string `json:"feature_file"`
+	PacpFile string `json:"pcapFile"`
 }
 
-func ReadConfig() CONFIG {
+func readConfig() CONFIG {
 	var config CONFIG
 	file, err := os.Open("./config.json")
 	if err != nil {
@@ -24,6 +24,7 @@ func ReadConfig() CONFIG {
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&config)
 	if err != nil {
+		fmt.Println("decoder error")
 		log.Fatal(err)
 	}
 	return config

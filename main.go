@@ -13,6 +13,6 @@ func main() {
 	pprof.StartCPUProfile(os.Stdout)
 	defer pprof.StopCPUProfile()
 	*/
-	config := ReadConfig()
+	config := readConfig()
 	extractFeature(config)
 }
