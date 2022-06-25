@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 	"trafficAnalysis/tool"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -58,18 +59,17 @@ type packetFeature struct {
 
 
 //按制定筛选规则，过滤流量，并提取流量中特征
-func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
+func extractFeature(config CONFIG, file string) ([][]packetFeature, []FlowFeature) {
 	var packetSource *gopacket.PacketSource	
 
 	//根据配置文件选择在线解析或者离线解析
 	//打开pcap数据包
 	if config.Method == "offline" {
-		handle, err := pcap.OpenOffline(config.PacpFile)
+		handle, err := pcap.OpenOffline(config.PacpFileDir+file)
 		if err != nil {
-			fmt.Println("67 lines")
+			fmt.Println("open pcapfile error")
 			log.Fatal(err)
 		}
-		fmt.Println(config.Filter)
 		err = handle.SetBPFFilter(config.Filter)
 		if err != nil {
 			fmt.Println("setbpffilter")
@@ -84,7 +84,6 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 			fmt.Println(80)
 			log.Fatal(err)
 		}
-		fmt.Println(config.Filter)
 		err = handle.SetBPFFilter(config.Filter)
 		if err != nil {
 			log.Fatal(err)
@@ -101,11 +100,9 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 
 	test := 1
 	for packet := range packets {
-		fmt.Println(test)
 		pFeature := extractPacketFeature(packet)
 		packetsToFlow(pFeature, mapAddress, &flows)
 		test = test + 1
-		fmt.Println()
 	}
 
 	fFeatures := make([]FlowFeature, len(flows))
@@ -114,7 +111,7 @@ func extractFeature(config CONFIG) ([][]packetFeature, []FlowFeature) {
 	}
 
 	//解析后的结果保存到feature下对应的文件目录
-	saveFeature(config.PacpFile, &flows)
+	saveFeature(config, file, &flows)
 	
 
 	return flows, fFeatures
@@ -181,7 +178,13 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	ressemableUDP := false
 	for oneLayerLen := 0; oneLayerLen < totoalLen; {
 		lengthH := 0
+		if oneLayerLen+5 > totoalLen || oneLayerLen < 0 {
+			break
+		}
 		lengthH, err = tool.NetBytesToInt(tls[oneLayerLen+3:oneLayerLen+5], 2)
+		if err != nil {
+			break
+		}
 		if lengthH > totoalLen {
 			break
 		}
@@ -227,27 +230,32 @@ func flowFeature(flow *[]packetFeature, fFeature *FlowFeature) {
 	
 }
 
-func saveFeature(name string, features *[][]packetFeature) {
-	fHandle, err := os.OpenFile(name+"S", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+func saveFeature(config CONFIG, file string, features *[][]packetFeature) {
+	saveFile := config.SaveFileDir + file
+	fHandle, err := os.OpenFile(saveFile + ".txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		fmt.Println("saveFeature file error")
 	}
 	defer fHandle.Close()
 	w := bufio.NewWriter(fHandle)
+	sum := 0
+	fmt.Printf("流的种类: %d\n", len(*features))
 	for i := 0; i < len(*features); i++ {
+		sum += len((*features)[i])
 		for j := 0; j < len((*features)[i]); j++ {
-			time := (*features)[i][j].timestamp
-			if j == 0 {
-				one := time.Sub(time)
-				w.WriteString(strconv.FormatFloat(one.Seconds(), 'f', 4, 64) + "\t")
-			} else if j > 0 {
-				w.WriteString(strconv.FormatFloat(time.Sub((*features)[i][j-1].timestamp).Seconds(), 'f', 4, 64) + "\t")
+			if (*features)[i][j].lenPayload != 0 {
+				time := (*features)[i][j].timestamp
+				if j == 0 {
+					one := time.Sub(time)
+					w.WriteString(strconv.FormatFloat(one.Seconds(), 'f', 4, 64) + "\t")
+				} else if j > 0 {
+					w.WriteString(strconv.FormatFloat(time.Sub((*features)[i][j-1].timestamp).Seconds(), 'f', 4, 64) + "\t")
+				}
+				w.WriteString(strconv.Itoa((*features)[i][j].lenPayload) + "\n")
 			}
-			w.WriteString((*features)[i][j].srcIP.String() + "\t")
-			w.WriteString((*features)[i][j].dstIP.String() + "\t")
-			w.WriteString(strconv.Itoa((*features)[i][j].lenPayload) + "\n")
 		}
 	}
+	fmt.Printf("数据包总量: %d\n", sum)
 	w.Flush()
 }
 
@@ -296,7 +304,6 @@ func handShakeProcess(tls []byte, feature *packetFeature) {
 				i = i + 4 + oneExtensionLen
 				position = position + 4 + oneExtensionLen
 			}
-			fmt.Println(len(feature.servername))
 		}
 		}
 	}

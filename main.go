@@ -1,18 +1,21 @@
 package main
 
 import (
-	/*
-		"runtime/pprof"
-		"os"
-	*/
+	"os"
+	"fmt"
 )
-
 
 func main() {
 	/*
 	pprof.StartCPUProfile(os.Stdout)
 	defer pprof.StopCPUProfile()
 	*/
+	arg := os.Args
+	if len(arg) < 2 {
+		fmt.Println("no give pcapfile")
+	}
 	config := readConfig()
-	extractFeature(config)
+	for i := 1; i < len(arg); i++ {
+		extractFeature(config, arg[i])
+	}
 }

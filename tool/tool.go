@@ -58,22 +58,16 @@ func CombineIPPort(addressA net.IP, addressAPort uint16, addressB net.IP, addres
 		}
 	}
 	newAddress := make([]byte, 0)
-	fmt.Println(addressAPort, addressBPort)
-	fmt.Println(uint16ToBytes(addressAPort), uint16ToBytes(addressBPort))
 	if flag {
 		newAddress = append(newAddress, addressA...)
 		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
 		newAddress = append(newAddress, addressB...)
 		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
-		fmt.Println("true")
-		fmt.Println(newAddress)
 	} else {
 		newAddress = append(newAddress, addressB...)
 		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
 		newAddress = append(newAddress, addressA...)
 		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
-		fmt.Println("false")
-		fmt.Println(newAddress)
 	}
 	return newAddress
 }

@@ -1,6 +1,7 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "tcp and len != 66",
-	"pcapFile": "/home/zt/data/3.20/3.20-miner.arch-miner.pool.ssl-xmrig-XMR.pcap"
+	"filter": "tcp",
+	"pcapFileDir": "/home/zt/data/",
+	"saveFileDir": "/home/zt/"
 }
