@@ -1,7 +1,7 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "tcp",
-	"pcapFileDir": "/home/zt/data/",
-	"saveFileDir": "/home/zt/"
+	"filter": "ip and udp",
+	"pcapFileDir": "/home/zt/",
+	"saveFileDir": "/home/zt/ai/experiment/data/"
 }

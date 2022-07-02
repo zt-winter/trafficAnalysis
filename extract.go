@@ -41,13 +41,14 @@ type packetFeature struct {
 	dstIP net.IP
 	flag uint8
 	ttl uint8
-	//tcp
+	//transport
 	srcPort uint16
 	dstPort uint16
+	lenPayload int
+	// tcp
 	seq uint32
 	ack uint32
 	win uint16
-	lenPayload int
 	//tls
 	tlsVersion int
 	tlsType int
@@ -69,16 +70,18 @@ func extractFeature(config CONFIG, file string) ([][]packetFeature, []FlowFeatur
 		if err != nil {
 			fmt.Println("open pcapfile error")
 			log.Fatal(err)
+		} else {
+			fmt.Println("open file success\n")
 		}
 		err = handle.SetBPFFilter(config.Filter)
 		if err != nil {
-			fmt.Println("setbpffilter")
+			fmt.Println("setbpffilter error")
 			log.Fatal(err)
+		} else {
+			fmt.Printf("setbpffilter success\n")
 		}
 		packetSource = gopacket.NewPacketSource(handle, handle.LinkType())
-	}
-	//打开网口
-	if config.Method == "online" {
+	} else if config.Method == "online" {
 		handle, err := pcap.OpenLive(config.Device, 2048, true, 30*time.Second)
 		if err != nil {
 			fmt.Println(80)
@@ -93,23 +96,26 @@ func extractFeature(config CONFIG, file string) ([][]packetFeature, []FlowFeatur
 
 	//获取每个数据包
 	packets := packetSource.Packets()
+	if packets == nil {
+		fmt.Println("error99")
+	}
 	flows := make([][]packetFeature, 0) 
-	mapAddress := make(map[string]int)
+	mapAddress := make(map[string]int, 0)
 
 	//遍历数据包，对每个数据包做解析
 
 	test := 1
 	for packet := range packets {
+		fmt.Println(packet)
 		pFeature := extractPacketFeature(packet)
 		packetsToFlow(pFeature, mapAddress, &flows)
 		test = test + 1
 	}
-
 	fFeatures := make([]FlowFeature, len(flows))
 	for i := 0; i < len(flows); i++ {
 		flowFeature(&flows[i], &fFeatures[i])
 	}
-
+	fmt.Println(len(flows))
 	//解析后的结果保存到feature下对应的文件目录
 	saveFeature(config, file, &flows)
 	
@@ -124,7 +130,7 @@ func packetsToFlow(pFeature packetFeature, mapAddress map[string]int,flows *[][]
 	one.dstIP = pFeature.dstIP
 	one.srcPort = pFeature.srcPort
 	one.dstPort = pFeature.dstPort
-	newAddress := tool.CombineIPPort(one.srcIP, one.srcPort, one.dstIP, one.dstPort)
+	newAddress := tool.CombineIP(one.srcIP, one.dstIP)
 	value := tool.SearchAddress(newAddress, mapAddress)
 	if value == -1 {
 		nums := len(*flows)
@@ -145,68 +151,83 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	//ip层字段提取
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 	ip, _ := ipLayer.(*layers.IPv4)
+	var transportLayer gopacket.LayerType
 	if ip!= nil {
+		transportLayer = ip.NextLayerType()
 		feature.srcIP = ip.SrcIP
 		feature.dstIP = ip.DstIP
 		feature.ttl = ip.TTL
 	} else {
 		log.Fatal(ip)
 	}
+	fmt.Println(transportLayer)
+	if transportLayer == layers.LayerTypeTCP {
+		//tcp层字段提取
+		tcpLayer := packet.Layer(layers.LayerTypeTCP)
+		tcp, _ := tcpLayer.(*layers.TCP)
+		if tcp != nil {
+			feature.srcPort = (uint16)(tcp.SrcPort)
+			feature.dstPort = (uint16)(tcp.DstPort)
+			feature.seq = tcp.Seq
+			feature.ack = tcp.Ack
+			feature.win = tcp.Window
+			feature.lenPayload = len(tcp.LayerPayload())
+		} else {
+			log.Fatal(tcp)
+		}
 
-	//tcp层字段提取
-	tcpLayer := packet.Layer(layers.LayerTypeTCP)
-	tcp, _ := tcpLayer.(*layers.TCP)
-	if tcp != nil {
-		feature.srcPort = (uint16)(tcp.SrcPort)
-		feature.dstPort = (uint16)(tcp.DstPort)
-		feature.seq = tcp.Seq
-		feature.ack = tcp.Ack
-		feature.win = tcp.Window
-		feature.lenPayload = len(tcp.LayerPayload())
-	} else {
-		log.Fatal(tcp)
-	}
+		//tls层字段提取
+		tls := tcp.Payload
+		var err error
+		totoalLen := len(tls)
 
-	//tls层字段提取
-	tls := tcp.Payload
-	var err error
-	totoalLen := len(tls)
-
-	if len(tls) < 6 {
-		return feature
-	}
-	ressemableUDP := false
-	for oneLayerLen := 0; oneLayerLen < totoalLen; {
-		lengthH := 0
-		if oneLayerLen+5 > totoalLen || oneLayerLen < 0 {
-			break
+		if len(tls) < 6 {
+			return feature
 		}
-		lengthH, err = tool.NetBytesToInt(tls[oneLayerLen+3:oneLayerLen+5], 2)
-		if err != nil {
-			break
-		}
-		if lengthH > totoalLen {
-			break
-		}
-		if oneLayerLen + lengthH + 5 > totoalLen {
-			break
-		}
-		if err != nil {
-			log.Fatal("error 178")
-		}
-		switch tls[oneLayerLen] {
-		case 20:
-		case 22: 
-			handShakeProcess(tls[oneLayerLen:], &feature)
-		case 23: 
-		default:
-			ressemableUDP =  true
-		}
-		if ressemableUDP {
-			break
-		}
+		ressemableUDP := false
+		for oneLayerLen := 0; oneLayerLen < totoalLen; {
+			lengthH := 0
+			if oneLayerLen+5 > totoalLen || oneLayerLen < 0 {
+				break
+			}
+			lengthH, err = tool.NetBytesToInt(tls[oneLayerLen+3:oneLayerLen+5], 2)
+			if err != nil {
+				break
+			}
+			if lengthH > totoalLen {
+				break
+			}
+			if oneLayerLen + lengthH + 5 > totoalLen {
+				break
+			}
+			if err != nil {
+				log.Fatal("error 178")
+			}
+			switch tls[oneLayerLen] {
+			case 20:
+			case 22: 
+				handShakeProcess(tls[oneLayerLen:], &feature)
+			case 23: 
+			default:
+				ressemableUDP =  true
+			}
+			if ressemableUDP {
+				break
+			}
 		
-		oneLayerLen = lengthH + oneLayerLen + 5
+			oneLayerLen = lengthH + oneLayerLen + 5
+		}
+	} else if transportLayer == layers.LayerTypeUDP {
+		//udp字段提取
+		udpLayer := packet.Layer(layers.LayerTypeUDP)
+		udp, _ := udpLayer.(*layers.UDP)
+		if udp != nil {
+			feature.srcPort = (uint16)(udp.SrcPort)
+			feature.dstPort = (uint16)(udp.DstPort)
+			feature.lenPacket = len(udp.LayerPayload())
+		} else {
+			log.Fatal(udp)
+		}
 	}
 	return feature
 }
@@ -231,17 +252,17 @@ func flowFeature(flow *[]packetFeature, fFeature *FlowFeature) {
 }
 
 func saveFeature(config CONFIG, file string, features *[][]packetFeature) {
-	saveFile := config.SaveFileDir + file
-	fHandle, err := os.OpenFile(saveFile + ".txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		fmt.Println("saveFeature file error")
-	}
-	defer fHandle.Close()
-	w := bufio.NewWriter(fHandle)
 	sum := 0
 	fmt.Printf("流的种类: %d\n", len(*features))
 	for i := 0; i < len(*features); i++ {
 		sum += len((*features)[i])
+		saveFile := config.SaveFileDir + file
+		fHandle, err := os.OpenFile(saveFile + strconv.Itoa(i) + ".txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+		if err != nil {
+			fmt.Println("saveFeature file error")
+		}
+		defer fHandle.Close()
+		w := bufio.NewWriter(fHandle)
 		for j := 0; j < len((*features)[i]); j++ {
 			if (*features)[i][j].lenPayload != 0 {
 				time := (*features)[i][j].timestamp
@@ -254,9 +275,9 @@ func saveFeature(config CONFIG, file string, features *[][]packetFeature) {
 				w.WriteString(strconv.Itoa((*features)[i][j].lenPayload) + "\n")
 			}
 		}
+		w.Flush()
 	}
 	fmt.Printf("数据包总量: %d\n", sum)
-	w.Flush()
 }
 
 func handShakeProcess(tls []byte, feature *packetFeature) {

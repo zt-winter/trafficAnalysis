@@ -18,7 +18,7 @@ type CONFIG struct {
 
 func readConfig() CONFIG {
 	var config CONFIG
-	file, err := os.Open("./config.json")
+	file, err := os.Open("/home/zt/code/go/trafficAnalysis/config.json")
 	if err != nil {
 		log.Fatal(err)
 	}

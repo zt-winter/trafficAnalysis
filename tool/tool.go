@@ -29,9 +29,11 @@ func CombineIP(addressA net.IP, addressB net.IP) []byte {
 	}
 	var newAddress []byte
 	if flag {
-		newAddress = append(addressA, addressB...)
+		newAddress = append(newAddress, addressA...)
+		newAddress = append(newAddress, addressB...)
 	} else {
-		newAddress = append(addressB, addressA...)
+		newAddress = append(newAddress, addressB...)
+		newAddress = append(newAddress, addressA...)
 	}
 	return newAddress
 }
