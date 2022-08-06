@@ -1,7 +1,7 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "ip and udp",
-	"pcapFileDir": "/home/zt/",
-	"saveFileDir": "/home/zt/ai/experiment/data/"
+	"filter": "ip and (udp or tcp)",
+	"pcapFileDir": "/home/zt/data/ISCX-VPN-NonVPN-2016/NonVPN-PCAPs-02/",
+	"saveFileDir": "/home/zt/ai/experiment/data/normal/"
 }

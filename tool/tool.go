@@ -38,7 +38,9 @@ func CombineIP(addressA net.IP, addressB net.IP) []byte {
 	return newAddress
 }
 
-func CombineIPPort(addressA net.IP, addressAPort uint16, addressB net.IP, addressBPort uint16) []byte {
+func CombineIPPort(src string, addressAPort string, dst string, addressBPort string) []byte {
+	addressA := []byte(src)
+	addressB := []byte(dst)
 	lengthA := len(addressA)
 	lengthB := len(addressB)
 	var flag bool
@@ -62,14 +64,14 @@ func CombineIPPort(addressA net.IP, addressAPort uint16, addressB net.IP, addres
 	newAddress := make([]byte, 0)
 	if flag {
 		newAddress = append(newAddress, addressA...)
-		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
+		newAddress = append(newAddress, []byte(addressAPort)...)
 		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
+		newAddress = append(newAddress, []byte(addressBPort)...)
 	} else {
 		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, uint16ToBytes(addressBPort)...)
+		newAddress = append(newAddress, []byte(addressBPort)...)
 		newAddress = append(newAddress, addressA...)
-		newAddress = append(newAddress, uint16ToBytes(addressAPort)...)
+		newAddress = append(newAddress, []byte(addressAPort)...)
 	}
 	return newAddress
 }
@@ -85,7 +87,7 @@ func SearchAddress(address []byte, mapAddress map[string]int) int {
 	}
 }
 
-func uint16ToBytes(port uint16) []byte {
+func Uint16ToBytes(port uint16) []byte {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, port)
 	return buf
