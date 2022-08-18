@@ -22,6 +22,7 @@ type flowFeature struct {
 	dstip string
 	srcport string
 	dstport string
+	transportLayer string
 	//上行包到达时间间隔
 	uptime_mean float64
 	uptime_std float64
@@ -41,16 +42,16 @@ type flowFeature struct {
 	duration float64
 	//上行数据包数目
 	uppacketnum int
-	//每秒上行数据包数目
-	uppacketnum_second float64
+	//每分钟上行数据包数目
+	uppacketnum_minute float64
 	//下行数据包数目
 	downpacketnum int
-	//每秒下行数据包数目
-	downpacketnum_second float64
+	//每分钟下行数据包数目
+	downpacketnum_minute float64
 	//总包数
 	packetnum int
-	//每秒包数
-	packetnum_second float64
+	//每分钟包数
+	packetnum_minute float64
 	//下行数据包比上行数据包
 	downuppacket_percent float64
 	//上行包头占总长度的比例
@@ -58,8 +59,8 @@ type flowFeature struct {
 	//下行包头占总长度的比例
 	downhead_percent float64
 
-	servername string
 	extensionNum int
+	servername string
 }
 
 
@@ -79,8 +80,8 @@ type packetFeature struct {
 	//tls
 	tlsVersion int
 	tlsType int
-	handShakeType []int
-	handShakeTypeLen []int
+	handShakeType []uint
+	handShakeTypeLen []uint
 	servername string
 	extensionNum int
 }
@@ -123,6 +124,7 @@ func extractFeature(config CONFIG)  {
 
 			test := 1
 			for packet := range packets {
+				fmt.Printf("%dth packet\n", test)
 				pFeature := extractPacketFeature(packet)
 				packetsToFlow(pFeature, mapAddress, &flows)
 				test = test + 1
@@ -211,6 +213,7 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	} else {
 		log.Fatal(ip)
 	}
+	fmt.Println(transportLayer)
 	if transportLayer == layers.LayerTypeTCP {
 		//tcp层字段提取
 		feature.transportLayer = "tcp"
@@ -227,18 +230,20 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 		//tls层字段提取
 		tls := tcp.Payload
 		var err error
-		totalLen := len(tls)
+		totalLen := tool.IntToUint(len(tls))
 
 		if len(tls) < 6 {
 			return feature
 		}
 		ressemableUDP := false
-		for oneLayerLen := 0; oneLayerLen < totalLen; {
-			lengthH := 0
+		var oneLayerLen uint
+		for oneLayerLen = 0; oneLayerLen < totalLen; {
+			fmt.Printf("oneLayerLen : %d\n", oneLayerLen)
+			var lengthH uint = 0
 			if oneLayerLen+5 > totalLen || oneLayerLen < 0 {
 				break
 			}
-			lengthH, err = tool.NetBytesToInt(tls[oneLayerLen+3:oneLayerLen+5], 2)
+			lengthH, err = tool.NetBytesToUint(tls[oneLayerLen+3:oneLayerLen+5], 2)
 			if err != nil {
 				break
 			}
@@ -251,10 +256,11 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 			if err != nil {
 				log.Fatal("error 178")
 			}
+			fmt.Printf("content type : %d\n", tls[oneLayerLen])
 			switch tls[oneLayerLen] {
 			case 20:
 			case 22: 
-				handShakeProcess(tls[oneLayerLen:], &feature)
+				handShakeProcess(tls[oneLayerLen+5:oneLayerLen+lengthH+5], &feature)
 			case 23: 
 			default:
 				ressemableUDP =  true
@@ -299,31 +305,35 @@ func saveFeatureone(config CONFIG, file string, features []flowFeature){
 		one += features[i].dstip + "\t"
 		one += features[i].srcport + "\t"
 		one += features[i].dstport + "\t"
+		one += features[i].transportLayer + "\t"
 		one += strconv.FormatFloat(features[i].uptime_mean, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].uptime_std, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].uptime_min, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].uptime_max, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downtime_mean, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downtime_std, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].downtime_max, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downtime_min, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].downtime_max, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].time_mean, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].time_std, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].time_max, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].time_min, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].time_max, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].duration, 'f', 4, 64) + "\t"
 		one += strconv.Itoa(features[i].uppacketnum) + "\t"
-		one += strconv.FormatFloat(features[i].uppacketnum_second, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].uppacketnum_minute, 'f', 4, 64) + "\t"
 		one += strconv.Itoa(features[i].downpacketnum) + "\t"
-		one += strconv.FormatFloat(features[i].downpacketnum_second, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].downpacketnum_minute, 'f', 4, 64) + "\t"
 		one += strconv.Itoa(features[i].packetnum) + "\t"
-		one += strconv.FormatFloat(features[i].packetnum_second, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].packetnum_minute, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downuppacket_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].uphead_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downhead_percent, 'f', 4, 64) + "\t"
-		one += features[i].servername + "\t"
-		one += strconv.Itoa(features[i].extensionNum)
-		one += features[i].servername
+		one += strconv.Itoa(features[i].extensionNum) + "\t"
+		if features[i].servername == "" {
+			one += strconv.Itoa(0)
+		} else {
+			one += strconv.Itoa(1)
+		}
 		w.WriteString(one + "\n")
 	}
 	w.Flush()
@@ -373,52 +383,76 @@ func saveFeature(config CONFIG, file string, features [][]packetFeature) {
 }
 
 func handShakeProcess(tls []byte, feature *packetFeature) {
-	lengthH := len(tls)
+	lengthH := tool.IntToUint(len(tls))
 	var err error
-	for j := 0; j < lengthH; {
-		handShakeType := 0
-		handShakeType, err = tool.NetBytesToInt(tls[0:1], 1)
+
+	var j uint
+	for j = 0; j < lengthH; {
+		var handShakeType uint = 0
+		handShakeType, err = tool.NetBytesToUint(tls[0:1], 1)
 		if err != nil {
-			log.Fatal("error 191")
+			log.Fatal("NetBytesToInt error")
 		}
 		feature.handShakeType = append(feature.handShakeType, handShakeType)
-		handShakeTypeLen := 0
-		handShakeTypeLen, err = tool.NetBytesToInt(tls[j+1:j+4], 3)
+		var handShakeTypeLen uint = 0
+		handShakeTypeLen, err = tool.NetBytesToUint(tls[j+1:j+4], 3)
+		if handShakeTypeLen > lengthH - j - 4 {
+			return;
+		}
 		if err != nil {
-			log.Fatal("error 199")
+			log.Fatal("NetBytesToInt error")
+		}
+		if(handShakeTypeLen <= 0) {
+			break;
 		}
 		j = j + 4 + handShakeTypeLen
 		feature.handShakeTypeLen = append(feature.handShakeTypeLen, handShakeTypeLen)
+		fmt.Printf("handShakeTypeLen %d\n", handShakeTypeLen)
 		switch handShakeType {
 		case 1:{
-			sessionLen := 0
-			sessionLen, err = tool.NetBytesToInt(tls[38:39], 1)
-
-			chiperSuitLen := 0
-			chiperSuitLen, err = tool.NetBytesToInt(tls[39+sessionLen:41+sessionLen], 2)
-			extensionLen := 0
-			extensionLen, err = tool.NetBytesToInt(tls[(43+chiperSuitLen+sessionLen):(45+chiperSuitLen+sessionLen)], 2)
+			var sessionLen uint = 0
+			if(handShakeTypeLen <= 39) {
+				break;
+			}
+			sessionLen, err = tool.NetBytesToUint(tls[38:39], 1)
+			if(handShakeTypeLen <= 41 + sessionLen || sessionLen >= math.MaxUint - 41) {
+				break;
+			}
+			var chiperSuitLen uint = 0
+			chiperSuitLen, err = tool.NetBytesToUint(tls[39+sessionLen:41+sessionLen], 2)
+			var extensionLen uint = 0
+			if(handShakeTypeLen <= 45 + chiperSuitLen + sessionLen || chiperSuitLen + sessionLen >= math.MaxUint) {
+				break;
+			}
+			extensionLen, err = tool.NetBytesToUint(tls[(43+chiperSuitLen+sessionLen):(45+chiperSuitLen+sessionLen)], 2)
 			position := 45 + chiperSuitLen + sessionLen
 			extensionNum := 0
-			for i := 0; i < extensionLen; {
-				extensionType := 0
-				extensionType, err = tool.NetBytesToInt(tls[position:position+2], 2)
-				oneExtensionLen := 0
+			var i uint
+			for i = 0; i < extensionLen; {
+				var extensionType uint = 0
+				if(handShakeTypeLen <= position + 2) {
+					break;
+				}
+				extensionType, err = tool.NetBytesToUint(tls[position:position+2], 2)
+				var oneExtensionLen uint = 0
 				switch extensionType {
 				//servername
 				case 0:
-					oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
-					servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], oneExtensionLen)
+					oneExtensionLen, _ = tool.NetBytesToUint(tls[position+2:position+4], 2)
+					servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], int(oneExtensionLen))
 					feature.servername = servername
 					fmt.Println(feature.servername)
 				default:
-					oneExtensionLen, _ = tool.NetBytesToInt(tls[position+2:position+4], 2)
+					oneExtensionLen, _ = tool.NetBytesToUint(tls[position+2:position+4], 2)
 				}
 				extensionNum++
 				i = i + 4 + oneExtensionLen
 				position = position + 4 + oneExtensionLen
 			}
 			feature.extensionNum = extensionNum
+			if(extensionNum != 0) {
+				fmt.Println(extensionNum);
+			}
 		}
 		}
 	}
@@ -432,6 +466,7 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	fFeature.dstip = flow[0].dstIP
 	fFeature.srcport = flow[0].srcPort
 	fFeature.dstport = flow[0].dstPort
+	fFeature.transportLayer = flow[0].transportLayer
 	//上行时间间隔
 	var uptime_pre time.Time
 	var uptime_count float64 = 0
@@ -478,6 +513,7 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 			upheadlen += int64(flow[i].lenPacket - flow[i].lenPayload)
 			uptime_count++
 			one = flow[i].timestamp.Sub(uptime_pre).Seconds()
+			uptime_pre = flow[i].timestamp
 			uptime_total += one
 			uptime_var += math.Pow(one, 2)
 			if one > uptime_max {
@@ -497,6 +533,7 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 			downheadlen += int64(flow[i].lenPacket - flow[i].lenPayload)
 			downtime_count++
 			one = flow[i].timestamp.Sub(downtime_pre).Seconds()
+			downtime_pre = flow[i].timestamp
 			downtime_total += one
 			downtime_var += math.Pow(one, 2)
 			if one > downtime_max {
@@ -511,6 +548,7 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 			time_pre = flow[i].timestamp
 		} else {
 			one = flow[i].timestamp.Sub(time_pre).Seconds()
+			time_pre = flow[i].timestamp
 			time_total += one
 			time_var += math.Pow(one, 2)
 			if one > time_max {
@@ -554,13 +592,13 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	fFeature.time_std = time_var / float64(length - 1) - math.Pow(fFeature.time_mean, 2)
 	fFeature.time_std = math.Sqrt(fFeature.time_std)
 
-	fFeature.duration = float64(flow[length-1].timestamp.Sub(flow[0].timestamp))
+	fFeature.duration = flow[length-1].timestamp.Sub(flow[0].timestamp).Seconds()
 	fFeature.uppacketnum = int(math.Floor(uptime_count+1))
-	fFeature.uppacketnum_second = float64(fFeature.uppacketnum) / fFeature.duration
+	fFeature.uppacketnum_minute = float64(fFeature.uppacketnum)*60 / fFeature.duration
 	fFeature.downpacketnum = int(math.Floor(downtime_count+1))
-	fFeature.downpacketnum_second = float64(fFeature.downpacketnum) / fFeature.duration
+	fFeature.downpacketnum_minute = float64(fFeature.downpacketnum)*60 / fFeature.duration
 	fFeature.packetnum = length
-	fFeature.packetnum_second = float64(fFeature.packetnum) / fFeature.duration
+	fFeature.packetnum_minute = float64(fFeature.packetnum)*60 / fFeature.duration
 	if fFeature.uppacketnum == 0 {
 		fFeature.downuppacket_percent = 0
 	} else {

@@ -93,24 +93,24 @@ func Uint16ToBytes(port uint16) []byte {
 	return buf
 }
 
-func NetBytesToInt(data []byte, length int) (int, error) {
+func NetBytesToUint(data []byte, length int) (uint, error) {
 	if length == 3 {
 		data = append([]byte{0}, data...)
 	}
 	bytesBuffer := bytes.NewBuffer(data)
 	switch length {
 	case 1:
-		var tmp int8
+		var tmp uint8
 		err := binary.Read(bytesBuffer, binary.BigEndian, &tmp)
-		return int(tmp), err
+		return uint(tmp), err
 	case 2:
-		var tmp int16
+		var tmp uint16
 		err := binary.Read(bytesBuffer, binary.BigEndian, &tmp)
-		return int(tmp), err
+		return uint(tmp), err
 	case 3, 4:
-		var tmp int32
+		var tmp uint32
 		err := binary.Read(bytesBuffer, binary.BigEndian, &tmp)
-		return int(tmp), err
+		return uint(tmp), err
 	default:
 		return 0, fmt.Errorf("%s", "bytes len is invaild")
 	}
@@ -122,4 +122,19 @@ func NetByteToString(data []byte, length int) (string, error) {
 	err := binary.Read(bytesBuffer, binary.BigEndian, tmp)
 	fmt.Println(string(tmp))
 	return string(tmp), err
+}
+
+func IntToUint(a int) uint {
+	var one uint = 1;
+	var b int = 1;
+	var ret uint = 0;
+	var i int = 0;
+	for i = 0; i < 32; i++ {
+		if a & b > 0 {
+			ret += one;
+		}
+		b = b << 1;
+		one = one << 1;
+	}
+	return ret
 }
