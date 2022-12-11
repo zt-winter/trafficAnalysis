@@ -14,6 +14,7 @@ type CONFIG struct {
 	Filter string `json:"filter"`
 	PacpFileDir string `json:"pcapFileDir"`
 	SaveFileDir string `json:"saveFileDir"`
+	Savemode string `json:"savemode"`
 }
 
 func readConfig() CONFIG {

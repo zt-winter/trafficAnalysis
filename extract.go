@@ -15,7 +15,14 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"github.com/grd/statistics"
 )
+
+type dataconvar struct {
+	ip string
+	varianceSrc float64
+	varianceDst float64
+}
 
 type flowFeature struct {
 	srcip string
@@ -73,6 +80,8 @@ type packetFeature struct {
 	flag uint8
 	ttl uint8
 	//transport
+	seq uint32
+	ack uint32
 	transportLayer string
 	srcPort string
 	dstPort string
@@ -91,10 +100,19 @@ type packetFeature struct {
 func extractFeature(config CONFIG)  {
 	var packetSource *gopacket.PacketSource	
 
+	logFIle, err := os.OpenFile("./extract.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("create log file error")
+	}
+	log.SetOutput(logFIle)
+	log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
 	//根据配置文件选择在线解析或者离线解析
 	//打开pcap数据包
 	if config.Method == "offline" {
-		files, _ := ioutil.ReadDir(config.PacpFileDir)
+		files, err := ioutil.ReadDir(config.PacpFileDir)
+		if err != nil {
+			log.Fatalln("this is no directory")
+		}
 		for a, file := range files {
 			fmt.Println(a, file)
 			handle, err := pcap.OpenOffline(config.PacpFileDir+file.Name())
@@ -121,21 +139,41 @@ func extractFeature(config CONFIG)  {
 			mapAddress := make(map[string]int, 0)
 
 			//遍历数据包，对每个数据包做解析
-
 			test := 1
 			for packet := range packets {
-				fmt.Printf("%dth packet\n", test)
 				pFeature := extractPacketFeature(packet)
 				packetsToFlow(pFeature, mapAddress, &flows)
 				test = test + 1
 			}
+
+			
 			fFeatures := make([]flowFeature, len(flows))
 			for i := 0; i < len(flows); i++ {
 				extractFlowFeature(flows[i], &fFeatures[i])
 			}
 			//解析后的结果保存到feature下对应的文件目录
 			//saveFeature(config, file.Name(), flows)
-			saveFeatureone(config, file.Name(), fFeatures)
+			if(config.Savemode == "packet") {
+				saveFeature(config, file.Name(), flows)
+			} else {
+				saveFeatureone(config, file.Name(), fFeatures)
+			}
+
+			//datacon
+			result := datacon(&flows)
+			resultFile := "./datacon"
+			fHandle, err := os.OpenFile(resultFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+			if err != nil {
+				fmt.Println("dataconfile error")
+			}
+			w := bufio.NewWriter(fHandle)
+			for i := 0; i < len(result); i++ {
+				w.WriteString(result[i].ip + "\t")
+				w.WriteString(strconv.FormatFloat(result[i].varianceSrc, 'f', 4, 64) + "\t")
+				w.WriteString(strconv.FormatFloat(result[i].varianceDst, 'f', 4, 64) + "\n")
+			}
+			w.Flush()
+			fHandle.Close()
 		}
 	} else if config.Method == "online" {
 		timeStr := time.Now().Format("2006-01-02 15:04:05")
@@ -213,13 +251,14 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	} else {
 		log.Fatal(ip)
 	}
-	fmt.Println(transportLayer)
 	if transportLayer == layers.LayerTypeTCP {
 		//tcp层字段提取
 		feature.transportLayer = "tcp"
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
 		tcp, _ := tcpLayer.(*layers.TCP)
 		if tcp != nil {
+			feature.seq = tcp.Seq
+			feature.ack = tcp.Ack
 			feature.srcPort = strconv.FormatUint(uint64(tcp.SrcPort), 10)
 			feature.dstPort = strconv.FormatUint(uint64(tcp.DstPort), 10)
 			feature.lenPayload = len(tcp.LayerPayload())
@@ -238,7 +277,6 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 		ressemableUDP := false
 		var oneLayerLen uint
 		for oneLayerLen = 0; oneLayerLen < totalLen; {
-			fmt.Printf("oneLayerLen : %d\n", oneLayerLen)
 			var lengthH uint = 0
 			if oneLayerLen+5 > totalLen || oneLayerLen < 0 {
 				break
@@ -256,7 +294,6 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 			if err != nil {
 				log.Fatal("error 178")
 			}
-			fmt.Printf("content type : %d\n", tls[oneLayerLen])
 			switch tls[oneLayerLen] {
 			case 20:
 			case 22: 
@@ -407,7 +444,6 @@ func handShakeProcess(tls []byte, feature *packetFeature) {
 		}
 		j = j + 4 + handShakeTypeLen
 		feature.handShakeTypeLen = append(feature.handShakeTypeLen, handShakeTypeLen)
-		fmt.Printf("handShakeTypeLen %d\n", handShakeTypeLen)
 		switch handShakeType {
 		case 1:{
 			var sessionLen uint = 0
@@ -441,7 +477,6 @@ func handShakeProcess(tls []byte, feature *packetFeature) {
 					oneExtensionLen, _ = tool.NetBytesToUint(tls[position+2:position+4], 2)
 					servername, _ := tool.NetByteToString(tls[position+4+5:position+4+oneExtensionLen], int(oneExtensionLen))
 					feature.servername = servername
-					fmt.Println(feature.servername)
 				default:
 					oneExtensionLen, _ = tool.NetBytesToUint(tls[position+2:position+4], 2)
 				}
@@ -451,7 +486,6 @@ func handShakeProcess(tls []byte, feature *packetFeature) {
 			}
 			feature.extensionNum = extensionNum
 			if(extensionNum != 0) {
-				fmt.Println(extensionNum);
 			}
 		}
 		}
@@ -614,4 +648,33 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	} else {
 		fFeature.downhead_percent = float64(downheadlen) / float64(downpacketlen)
 	}
+}
+
+func datacon(flow *[][]packetFeature) []dataconvar {
+	result := make([]dataconvar, 0)
+	var tmp dataconvar;
+	for i := 0; i < len(*flow); i++ {
+		pktsrc := statistics.Int64{}
+		pktdst := statistics.Int64{} 
+		for j := 0; j < len((*flow)[i]); j++ {
+			if (*flow)[i][j].srcIP == "192.168.60.78" {
+				if (*flow)[i][j].lenPayload != 0 {
+				pktsrc = append(pktsrc, (int64)((*flow)[i][j].lenPayload))
+				}
+			} else {
+				if (*flow)[i][j].lenPayload != 0 {
+				pktdst = append(pktdst, (int64)((*flow)[i][j].lenPayload))
+				}
+			}
+		}
+		tmp.varianceSrc = statistics.Variance(&pktsrc)
+		tmp.varianceDst = statistics.Variance(&pktdst)
+		if (*flow)[i][0].srcIP == "192.168.60.78" {
+			tmp.ip = (*flow)[i][0].dstIP
+		} else {
+			tmp.ip = (*flow)[i][0].srcIP
+		}
+		result = append(result, tmp)
+	}
+	return result
 }

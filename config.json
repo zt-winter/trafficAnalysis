@@ -1,7 +1,8 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "ip and (udp or tcp)",
-	"pcapFileDir": "/home/zt/data/normal/",
-	"saveFileDir": "/home/zt/test/"
+	"filter": "tcp",
+	"pcapFileDir": "/home/zt/compitition/",
+	"saveFileDir": "/home/zt/one/",
+	"savemode": "packet"
 }
