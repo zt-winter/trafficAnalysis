@@ -77,15 +77,23 @@ type packetFeature struct {
 	//ip
 	srcIP string
 	dstIP string
-	flag uint8
 	ttl uint8
 	//transport
-	seq uint32
-	ack uint32
-	transportLayer string
-	srcPort string
-	dstPort string
-	lenPayload int
+	transportLayer  string
+	srcPort string //udp also has
+	dstPort string //udp also has
+	lenPayload int //udp alse has
+	seqnum uint32 
+	acknum uint32 
+	fin bool 
+	syn bool
+	rst bool
+	psh bool
+	ack bool 
+	urg bool
+	ece bool
+	cwr bool
+	ns bool
 	//tls
 	tlsVersion int
 	tlsType int
@@ -100,7 +108,7 @@ type packetFeature struct {
 func extractFeature(config CONFIG)  {
 	var packetSource *gopacket.PacketSource	
 
-	logFIle, err := os.OpenFile("./extract.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	logFIle, err := os.OpenFile("./trafficAnalysis.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("create log file error")
 	}
@@ -155,10 +163,12 @@ func extractFeature(config CONFIG)  {
 			//saveFeature(config, file.Name(), flows)
 			if(config.Savemode == "packet") {
 				saveFeature(config, file.Name(), flows)
-			} else {
+			} else if config.Savemode == "flow" {
 				saveFeatureone(config, file.Name(), fFeatures)
+			} else {
+				log.Fatal("savemode error\n")
 			}
-
+			/*
 			//datacon
 			result := datacon(&flows)
 			resultFile := "./datacon"
@@ -174,6 +184,7 @@ func extractFeature(config CONFIG)  {
 			}
 			w.Flush()
 			fHandle.Close()
+			*/
 		}
 	} else if config.Method == "online" {
 		timeStr := time.Now().Format("2006-01-02 15:04:05")
@@ -243,13 +254,14 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 	ip, _ := ipLayer.(*layers.IPv4)
 	var transportLayer gopacket.LayerType
-	if ip!= nil {
+	if ip != nil {
 		transportLayer = ip.NextLayerType()
 		feature.srcIP = ip.SrcIP.String()
 		feature.dstIP = ip.DstIP.String()
 		feature.ttl = ip.TTL
 	} else {
-		log.Fatal(ip)
+		//log.Println("ip is nil")
+		return feature
 	}
 	if transportLayer == layers.LayerTypeTCP {
 		//tcp层字段提取
@@ -257,8 +269,17 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 		tcpLayer := packet.Layer(layers.LayerTypeTCP)
 		tcp, _ := tcpLayer.(*layers.TCP)
 		if tcp != nil {
-			feature.seq = tcp.Seq
-			feature.ack = tcp.Ack
+			feature.seqnum = tcp.Seq
+			feature.acknum = tcp.Ack
+			feature.fin = tcp.FIN
+			feature.syn = tcp.SYN
+			feature.rst = tcp.RST
+			feature.psh = tcp.PSH
+			feature.ack = tcp.ACK
+			feature.urg = tcp.URG
+			feature.ece = tcp.ECE
+			feature.cwr = tcp.CWR
+			feature.ns = tcp.NS
 			feature.srcPort = strconv.FormatUint(uint64(tcp.SrcPort), 10)
 			feature.dstPort = strconv.FormatUint(uint64(tcp.DstPort), 10)
 			feature.lenPayload = len(tcp.LayerPayload())
@@ -409,7 +430,72 @@ func saveFeature(config CONFIG, file string, features [][]packetFeature) {
 				} else if j > 0 {
 					w.WriteString(strconv.FormatFloat(time.Sub(features[i][j-1].timestamp).Seconds(), 'f', 4, 64) + "\t")
 				}
-				w.WriteString(strconv.Itoa(features[i][j].lenPayload) + "\n")
+				//内网到外网direction = 0, 外网到内网direction = 1
+				if features[i][j].srcIP[:7] == "192.168" {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				}
+				w.WriteString(features[i][j].srcIP + "\t")
+				w.WriteString(features[i][j].dstIP + "\t")
+				w.WriteString(strconv.FormatUint(uint64(features[i][j].ttl), 10) + "\t")
+				//udp = 0, tcp = 1
+				if features[i][j].transportLayer == "udp" {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				} else if features[i][j].transportLayer == "tcp" {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				}
+				w.WriteString(features[i][j].srcPort + "\t")
+				w.WriteString(features[i][j].dstPort + "\t")
+				w.WriteString(strconv.Itoa(features[i][j].lenPayload) + "\t")
+				w.WriteString(strconv.FormatUint(uint64(features[i][j].seqnum), 10) + "\t")
+				w.WriteString(strconv.FormatUint(uint64(features[i][j].acknum), 10) + "\t")
+				if features[i][j].fin {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].syn {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].rst {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].psh {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].ack {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].urg {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].ece {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].cwr {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				if features[i][j].ns {
+					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(0) + "\t")
+				}
+				w.WriteString("\n")
 			}
 		}
 		w.Flush()
