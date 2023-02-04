@@ -422,6 +422,7 @@ func saveFeature(config CONFIG, file string, features [][]packetFeature) {
 		}
 		w := bufio.NewWriter(fHandle)
 		for j := 0; j < len(features[i]); j++ {
+			firstSrcIP := features[i][0].srcIP
 			if features[i][j].lenPayload != 0 {
 				time := features[i][j].timestamp
 				if j == 0 {
@@ -431,7 +432,7 @@ func saveFeature(config CONFIG, file string, features [][]packetFeature) {
 					w.WriteString(strconv.FormatFloat(time.Sub(features[i][j-1].timestamp).Seconds(), 'f', 4, 64) + "\t")
 				}
 				//内网到外网direction = 0, 外网到内网direction = 1
-				if features[i][j].srcIP[:7] == "192.168" {
+				if features[i][j].srcIP == firstSrcIP {
 					w.WriteString(strconv.Itoa(0) + "\t")
 				} else {
 					w.WriteString(strconv.Itoa(1) + "\t")
@@ -444,6 +445,8 @@ func saveFeature(config CONFIG, file string, features [][]packetFeature) {
 					w.WriteString(strconv.Itoa(0) + "\t")
 				} else if features[i][j].transportLayer == "tcp" {
 					w.WriteString(strconv.Itoa(1) + "\t")
+				} else {
+					w.WriteString(strconv.Itoa(2) + "\t")
 				}
 				w.WriteString(features[i][j].srcPort + "\t")
 				w.WriteString(features[i][j].dstPort + "\t")
