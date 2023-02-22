@@ -68,6 +68,11 @@ type flowFeature struct {
 
 	extensionNum int
 	servername string
+	
+	//tcp psh字段数据包占比
+	psh float64
+	//tcp urg字段数据包占比
+	urg float64
 }
 
 
@@ -164,7 +169,7 @@ func extractFeature(config CONFIG)  {
 			if(config.Savemode == "packet") {
 				saveFeature(config, file.Name(), flows)
 			} else if config.Savemode == "flow" {
-				saveFeatureone(config, file.Name(), fFeatures)
+				saveFlowFeature(config, file.Name(), fFeatures)
 			} else {
 				log.Fatal("savemode error\n")
 			}
@@ -345,7 +350,7 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 	return feature
 }
 
-func saveFeatureone(config CONFIG, file string, features []flowFeature){
+func saveFlowFeature(config CONFIG, file string, features []flowFeature){
 	length := len(features)
 	saveFile := config.SaveFileDir + file
 	fHandle, err := os.OpenFile(saveFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
@@ -387,6 +392,8 @@ func saveFeatureone(config CONFIG, file string, features []flowFeature){
 		one += strconv.FormatFloat(features[i].uphead_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downhead_percent, 'f', 4, 64) + "\t"
 		one += strconv.Itoa(features[i].extensionNum) + "\t"
+		one += strconv.FormatFloat(features[i].psh, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].urg, 'f', 4, 64) + "\t"
 		if features[i].servername == "" {
 			one += strconv.Itoa(0)
 		} else {
@@ -623,6 +630,10 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	var downpacketlen int64
 	var downheadlen int64
 
+	//psh\urg数据包数量
+	var pshNum int64 = 0
+	var urgNum int64 = 0
+
 	for i := 0; i < length; i++ {
 		packetlen += int64(flow[i].lenPacket)
 		headlen += int64(flow[i].lenPacket - flow[i].lenPayload) 
@@ -685,6 +696,13 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 			fFeature.servername = flow[i].servername
 		}
 		fFeature.extensionNum += flow[i].extensionNum
+
+		if flow[i].psh {
+			pshNum++
+		}
+		if flow[i].urg {
+			urgNum++
+		}
 	}
 	if uptime_min == math.MaxFloat64 {
 		fFeature.uptime_min = 0
@@ -737,8 +755,11 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	} else {
 		fFeature.downhead_percent = float64(downheadlen) / float64(downpacketlen)
 	}
+	fFeature.psh = float64(pshNum) / float64(length)
+	fFeature.urg = float64(urgNum) / float64(length)
 }
 
+//2022 datacon竞赛特征提取代码
 func datacon(flow *[][]packetFeature) []dataconvar {
 	result := make([]dataconvar, 0)
 	var tmp dataconvar;

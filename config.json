@@ -2,7 +2,7 @@
 	"method": "offline",
 	"device": "eth0",
 	"filter": "tcp or udp",
-	"pcapFileDir": "/home/zt/data/ISCX-VPN-NonVPN-2016/VPN-PCAPs-02/",
-	"saveFileDir": "/home/zt/ai/experiment/data/packet/normalVPN/",
-	"savemode": "packet"
+	"pcapFileDir": "/home/zt/data/mining/",
+	"saveFileDir": "/home/zt/ai/experiment/data/abnormal/",
+	"savemode": "flow"
 }
