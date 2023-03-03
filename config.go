@@ -12,6 +12,7 @@ type CONFIG struct {
 	Method string `json:"method"`
 	Device string `json:"device"`
 	Filter string `json:"filter"`
+	Tuple string `json:"tuple"`
 	PacpFileDir string `json:"pcapFileDir"`
 	SaveFileDir string `json:"saveFileDir"`
 	Savemode string `json:"savemode"`

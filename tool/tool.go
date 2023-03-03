@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
 )
 
 //将源IP与目的IP结合，A发送给B，B发送给A归为一类
-func CombineIP(addressA net.IP, addressB net.IP) []byte {
+func CombineIP(src string, dst string) []byte {
+	addressA := []byte(src)
+	addressB := []byte(dst)
 	lengthA := len(addressA)
 	lengthB := len(addressB)
 	var flag bool
@@ -27,7 +28,7 @@ func CombineIP(addressA net.IP, addressB net.IP) []byte {
 			}
 		}
 	}
-	var newAddress []byte
+	newAddress := make([]byte, 0)
 	if flag {
 		newAddress = append(newAddress, addressA...)
 		newAddress = append(newAddress, addressB...)

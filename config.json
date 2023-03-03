@@ -1,8 +1,9 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "tcp or udp",
+	"filter": "tcp",
+	"tuple": "3",
 	"pcapFileDir": "/home/zt/data/mining/",
-	"saveFileDir": "/home/zt/ai/experiment/data/abnormal/",
-	"savemode": "flow"
+	"saveFileDir": "/home/zt/ai/experiment/data/packet/abnormal/",
+	"savemode": "packet"
 }

@@ -115,7 +115,6 @@ func extractFeature(config CONFIG)  {
 
 	logFIle, err := os.OpenFile("./trafficAnalysis.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println("create log file error")
 	}
 	log.SetOutput(logFIle)
 	log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
@@ -126,21 +125,18 @@ func extractFeature(config CONFIG)  {
 		if err != nil {
 			log.Fatalln("this is no directory")
 		}
+		fmt.Println(time.Now())
 		for a, file := range files {
 			fmt.Println(a, file)
 			handle, err := pcap.OpenOffline(config.PacpFileDir+file.Name())
 			if err != nil {
-				fmt.Println("open pcapfile error")
 				log.Fatal(err)
 			} else {
-				fmt.Println("open file success")
 			}
 			err = handle.SetBPFFilter(config.Filter)
 			if err != nil {
-				fmt.Println("setbpffilter error")
 				log.Fatal(err)
 			} else {
-				fmt.Printf("setbpffilter success\n")
 			}
 			packetSource = gopacket.NewPacketSource(handle, handle.LinkType())
 			//获取每个数据包
@@ -155,7 +151,7 @@ func extractFeature(config CONFIG)  {
 			test := 1
 			for packet := range packets {
 				pFeature := extractPacketFeature(packet)
-				packetsToFlow(pFeature, mapAddress, &flows)
+				packetsToFlow(config, pFeature, mapAddress, &flows)
 				test = test + 1
 			}
 
@@ -191,6 +187,7 @@ func extractFeature(config CONFIG)  {
 			fHandle.Close()
 			*/
 		}
+		fmt.Println(time.Now())
 	} else if config.Method == "online" {
 		timeStr := time.Now().Format("2006-01-02 15:04:05")
 		handle, err := pcap.OpenLive(config.Device, 2048, true, 30*time.Second)
@@ -216,7 +213,7 @@ func extractFeature(config CONFIG)  {
 		test := 1
 		for packet := range packets {
 			pFeature := extractPacketFeature(packet)
-			packetsToFlow(pFeature, mapAddress, &flows)
+			packetsToFlow(config, pFeature, mapAddress, &flows)
 			test = test + 1
 		}
 		fFeatures := make([]flowFeature, len(flows))
@@ -230,14 +227,18 @@ func extractFeature(config CONFIG)  {
 }
 
 // 根据数据包的四元组，将数据包分成流
-func packetsToFlow(pFeature packetFeature, mapAddress map[string]int,flows *[][]packetFeature) {
+func packetsToFlow(config CONFIG, pFeature packetFeature, mapAddress map[string]int,flows *[][]packetFeature) {
 	one := new(packetFeature)
 	one.srcIP = pFeature.srcIP
 	one.dstIP = pFeature.dstIP
 	one.srcPort = pFeature.srcPort
 	one.dstPort = pFeature.dstPort
-	//newAddress := tool.CombineIP(one.srcIP, one.dstIP)
-	newAddress := tool.CombineIPPort(one.srcIP ,one.srcPort, one.dstIP, one.dstPort)
+	newAddress := make([]byte, 0)
+	if config.Tuple == "3" {
+		newAddress = tool.CombineIP(one.srcIP, one.dstIP)
+	} else if config.Tuple == "5" {
+		newAddress = tool.CombineIPPort(one.srcIP ,one.srcPort, one.dstIP, one.dstPort)
+	}
 	value := tool.SearchAddress(newAddress, mapAddress)
 	if value == -1 {
 		nums := len(*flows)
@@ -353,7 +354,7 @@ func extractPacketFeature(packet gopacket.Packet) packetFeature {
 func saveFlowFeature(config CONFIG, file string, features []flowFeature){
 	length := len(features)
 	saveFile := config.SaveFileDir + file
-	fHandle, err := os.OpenFile(saveFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	fHandle, err := os.OpenFile(saveFile + ".txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		fmt.Println("saveFeature file error")
 	}
@@ -392,13 +393,13 @@ func saveFlowFeature(config CONFIG, file string, features []flowFeature){
 		one += strconv.FormatFloat(features[i].uphead_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].downhead_percent, 'f', 4, 64) + "\t"
 		one += strconv.Itoa(features[i].extensionNum) + "\t"
+		if features[i].servername == "" {
+			one += strconv.Itoa(0) + "\t"
+		} else {
+			one += strconv.Itoa(1) + "\t"
+		}
 		one += strconv.FormatFloat(features[i].psh, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].urg, 'f', 4, 64) + "\t"
-		if features[i].servername == "" {
-			one += strconv.Itoa(0)
-		} else {
-			one += strconv.Itoa(1)
-		}
 		w.WriteString(one + "\n")
 	}
 	w.Flush()
