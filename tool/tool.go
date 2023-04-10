@@ -4,59 +4,58 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
 )
 
-//将源IP与目的IP结合，A发送给B，B发送给A归为一类
-func CombineIP(src string, dst string) []byte {
-	addressA := []byte(src)
-	addressB := []byte(dst)
-	lengthA := len(addressA)
-	lengthB := len(addressB)
+// 将源IP与目的IP结合，A发送给B，B发送给A归为一类
+func CombineIP(src net.IP, dst net.IP) []byte {
+	//addressA := []byte(src)
+	//addressB := []byte(dst)
+	lengthA := len(src)
+	lengthB := len(dst)
 	var flag bool
 	for i := 0; i < lengthA && i < lengthB; i++ {
-		if addressA[i] < addressB[i] {
+		if src[i] < dst[i] {
 			flag = true
 			break
-		} else if addressA[i] > addressB[i] {
+		} else if src[i] > dst[i] {
 			flag = false
 			break
 		} else {
-			if i == lengthA - 1 {
+			if i == lengthA-1 {
 				flag = true
-			} else if i == lengthB - 1 {
+			} else if i == lengthB-1 {
 				flag = false
 			}
 		}
 	}
 	newAddress := make([]byte, 0)
 	if flag {
-		newAddress = append(newAddress, addressA...)
-		newAddress = append(newAddress, addressB...)
+		newAddress = append(newAddress, src...)
+		newAddress = append(newAddress, dst...)
 	} else {
-		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, addressA...)
+		newAddress = append(newAddress, dst...)
+		newAddress = append(newAddress, src...)
 	}
 	return newAddress
 }
 
-func CombineIPPort(src string, addressAPort string, dst string, addressBPort string) []byte {
-	addressA := []byte(src)
-	addressB := []byte(dst)
-	lengthA := len(addressA)
-	lengthB := len(addressB)
+func CombineIPPort(src net.IP, addressAPort uint16, dst net.IP, addressBPort uint16) []byte {
+	lengthA := len(src)
+	lengthB := len(dst)
 	var flag bool
 	for i := 0; i < lengthA && i < lengthB; i++ {
-		if addressA[i] < addressB[i] {
+		if src[i] < dst[i] {
 			flag = true
 			break
-		} else if addressA[i] > addressB[i] {
+		} else if src[i] > dst[i] {
 			flag = false
 			break
 		} else {
-			if i == lengthA - 1 {
+			if i == lengthA-1 {
 				flag = true
 				break
-			} else if i == lengthB - 1 {
+			} else if i == lengthB-1 {
 				flag = false
 				break
 			}
@@ -64,20 +63,20 @@ func CombineIPPort(src string, addressAPort string, dst string, addressBPort str
 	}
 	newAddress := make([]byte, 0)
 	if flag {
-		newAddress = append(newAddress, addressA...)
-		newAddress = append(newAddress, []byte(addressAPort)...)
-		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, []byte(addressBPort)...)
+		newAddress = append(newAddress, src...)
+		newAddress = append(newAddress, Uint16ToBytes(addressAPort)...)
+		newAddress = append(newAddress, dst...)
+		newAddress = append(newAddress, Uint16ToBytes(addressBPort)...)
 	} else {
-		newAddress = append(newAddress, addressB...)
-		newAddress = append(newAddress, []byte(addressBPort)...)
-		newAddress = append(newAddress, addressA...)
-		newAddress = append(newAddress, []byte(addressAPort)...)
+		newAddress = append(newAddress, dst...)
+		newAddress = append(newAddress, Uint16ToBytes(addressBPort)...)
+		newAddress = append(newAddress, src...)
+		newAddress = append(newAddress, Uint16ToBytes(addressAPort)...)
 	}
 	return newAddress
 }
 
-//在map查询是否有相关IP结合
+// 在map查询是否有相关IP结合
 func SearchAddress(address []byte, mapAddress map[string]int) int {
 	stringAddress := string(address)
 	value, ok := mapAddress[stringAddress]
@@ -121,21 +120,20 @@ func NetByteToString(data []byte, length int) (string, error) {
 	tmp := make([]byte, len(data))
 	bytesBuffer := bytes.NewBuffer(data)
 	err := binary.Read(bytesBuffer, binary.BigEndian, tmp)
-	fmt.Println(string(tmp))
 	return string(tmp), err
 }
 
 func IntToUint(a int) uint {
-	var one uint = 1;
-	var b int = 1;
-	var ret uint = 0;
-	var i int = 0;
+	var one uint = 1
+	var b int = 1
+	var ret uint = 0
+	var i int = 0
 	for i = 0; i < 32; i++ {
-		if a & b > 0 {
-			ret += one;
+		if a&b > 0 {
+			ret += one
 		}
-		b = b << 1;
-		one = one << 1;
+		b = b << 1
+		one = one << 1
 	}
 	return ret
 }
