@@ -93,4 +93,7 @@ urg
 ece
 cwr
 ns
+
+servername bool
+extensionNum int
 ```

@@ -1,9 +1,11 @@
 {
 	"method": "offline",
 	"device": "eth0",
-	"filter": "tcp",
-	"tuple": "3",
-	"pcapFileDir": "/home/zt/data/mining/",
-	"saveFileDir": "/home/zt/ai/experiment/data/packet/abnormal/",
-	"savemode": "packet"
+	"filter": "tcp or udp",
+	"tuple": "5",
+	"pcapFileDir": "/home/zt/data/cicids2017part/",
+	"saveFileDir": "/home/zt/test/",
+	"saveMode": "flow",
+	"kafkaSource": "127.0.0.1",
+	"kafkaTopic": "test"
 }

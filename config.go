@@ -7,20 +7,22 @@ import (
 	"os"
 )
 
-//后续补充
+// 后续补充
 type CONFIG struct {
-	Method string `json:"method"`
-	Device string `json:"device"`
-	Filter string `json:"filter"`
-	Tuple string `json:"tuple"`
+	Method      string `json:"method"`
+	Device      string `json:"device"`
+	Filter      string `json:"filter"`
+	Tuple       string `json:"tuple"`
 	PacpFileDir string `json:"pcapFileDir"`
 	SaveFileDir string `json:"saveFileDir"`
-	Savemode string `json:"savemode"`
+	SaveMode    string `json:"saveMode"`
+	KafkaSource string `json:"kafkaSource"`
+	KafkaTopic  string `json:"kafkaTopic"`
 }
 
 func readConfig() CONFIG {
 	var config CONFIG
-	file, err := os.Open("/home/zt/code/go/trafficAnalysis/config.json")
+	file, err := os.Open("config.json")
 	if err != nil {
 		log.Fatal(err)
 	}
