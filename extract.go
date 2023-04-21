@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -172,7 +171,6 @@ func extractFeature(config CONFIG) {
 			handle, err := pcap.OpenOffline(config.PacpFileDir + file.Name())
 			if err != nil {
 				log.Fatal(err)
-			} else {
 			}
 			err = handle.SetBPFFilter(config.Filter)
 			if err != nil {
@@ -181,32 +179,34 @@ func extractFeature(config CONFIG) {
 			packetSource = gopacket.NewPacketSource(handle, handle.LinkType())
 
 			flows := make([][]packetFeature, 0, 500)
+			fmt.Println("len(flows): ", len(flows))
 			mapAddress := make(map[string]int, 500)
 
 			//遍历数据包，对每个数据包做解析
 			test := 1
-			for {
-				packet, err := packetSource.NextPacket()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					log.Fatal(err)
-					continue
+			/*
+				for {
+					packet, err := packetSource.NextPacket()
+					if err == io.EOF {
+						break
+					} else if err != nil {
+						log.Fatal(err)
+						continue
+					}
+					pFeature := extractPacketFeature(&packet)
+					fmt.Printf("test: %d  ", test)
+					packetsToFlow(config, &pFeature, mapAddress, &flows)
+					test = test + 1
 				}
+			*/
+			for packet := range packetSource.Packets() {
 				pFeature := extractPacketFeature(&packet)
 				packetsToFlow(config, &pFeature, mapAddress, &flows)
 				test = test + 1
 			}
 
-			/*
-				for packet := range packetSource.Packets() {
-					pFeature := extractPacketFeature(&packet)
-					packetsToFlow(config, &pFeature, mapAddress, &flows)
-					test = test + 1
-				}
-			*/
-
 			fFeatures := make([]flowFeature, len(flows))
+			fmt.Println(len(flows))
 			for i := 0; i < len(flows); i++ {
 				extractFlowFeature(flows[i], &fFeatures[i])
 			}
@@ -935,15 +935,27 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	fFeature.TimeStd = math.Sqrt(fFeature.TimeStd)
 
 	//数据包长度
+	if upPacketLenMin == math.MaxFloat64 {
+		fFeature.UpPacketLenMin = 0
+	} else {
+		fFeature.UpPacketLenMin = upPacketLenMin
+	}
 	fFeature.UpPacketLenMax = upPacketLenMax
-	fFeature.UpPacketLenMin = upPacketLenMin
-	fFeature.UpPacketLenMean = upPacketLenTotal / upPacketLenCount
-	fFeature.UpPacketLenStd = upPacketLenVar/upPacketLenCount - math.Pow(fFeature.DownPacketLenMean, 2)
+	if upPacketLenCount != 0 {
+		fFeature.UpPacketLenMean = upPacketLenTotal / upPacketLenCount
+		fFeature.UpPacketLenStd = upPacketLenVar/upPacketLenCount - math.Pow(fFeature.UpPacketLenMean, 2)
+	}
 
+	if downPacketLenMin == math.MaxFloat64 {
+		fFeature.DownPacketLenMin = 0
+	} else {
+		fFeature.DownPacketLenMin = downPacketLenMin
+	}
 	fFeature.DownPacketLenMax = downPacketLenMax
-	fFeature.DownPacketLenMin = downPacketLenMin
-	fFeature.DownPacketLenMean = downPacketLenTotal / downPacketLenCount
-	fFeature.DownPacketLenStd = downPacketLenVar/downPacketLenCount - math.Pow(fFeature.DownPacketLenMean, 2)
+	if downPacketLenCount != 0 {
+		fFeature.DownPacketLenMean = downPacketLenTotal / downPacketLenCount
+		fFeature.DownPacketLenStd = downPacketLenVar/downPacketLenCount - math.Pow(fFeature.DownPacketLenMean, 2)
+	}
 
 	fFeature.PacketLenMax = packetLenMax
 	fFeature.PacketLenMin = packetLenMin
@@ -1038,6 +1050,7 @@ func saveKafka(config CONFIG, features []flowFeature) {
 				/*Value: sarama.StringEncoder(*(*string)(unsafe.Pointer(&json)))*/
 				Value: sarama.ByteEncoder(json),
 			}
+			wg.Done()
 		}(i)
 	}
 	wg.Wait()
