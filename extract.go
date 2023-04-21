@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,34 +35,53 @@ type flowFeature struct {
 	Dstport        uint16
 	TransportLayer uint16
 	//上行包到达时间间隔
-	Uptime_mean float64
-	Uptime_std  float64
-	Uptime_min  float64
-	Uptime_max  float64
+	UpTimeMean float64
+	UpTimeStd  float64
+	UpTimeMin  float64
+	UpTimeMax  float64
 	//下行包到达时间间隔
-	Downtime_mean float64
-	Downtime_std  float64
-	Downtime_min  float64
-	Downtime_max  float64
+	DownTimeMean float64
+	DownTimeStd  float64
+	DownTimeMin  float64
+	DownTimeMax  float64
 	//包到达时间
-	Time_mean float64
-	Time_std  float64
-	Time_min  float64
-	Time_max  float64
+	TimeMean float64
+	TimeStd  float64
+	TimeMin  float64
+	TimeMax  float64
+
+	//上行数据包包长
+	UpPacketLenMean float64
+	UpPacketLenStd  float64
+	UpPacketLenMin  float64
+	UpPacketLenMax  float64
+
+	//下行数据包包长
+	DownPacketLenMean float64
+	DownPacketLenStd  float64
+	DownPacketLenMin  float64
+	DownPacketLenMax  float64
+
+	//数据包长
+	PacketLenMean float64
+	PacketLenStd  float64
+	PacketLenMin  float64
+	PacketLenMax  float64
+
 	//流持续时间
 	Duration float64
 	//上行数据包数目
-	Uppacketnum int
+	UpPacketNum int
 	//每分钟上行数据包数目
-	Uppacketnum_minute float64
+	UpPacketNumMinute float64
 	//下行数据包数目
-	Downpacketnum int
+	DownPacketNum int
 	//每分钟下行数据包数目
-	Downpacketnum_minute float64
+	DownPacketNumMinute float64
 	//总包数
-	Packetnum int
+	PacketNum int
 	//每分钟包数
-	Packetnum_minute float64
+	PacketNumMinute float64
 	//下行数据包比上行数据包
 	Downuppacket_percent float64
 	//上行包头占总长度的比例
@@ -78,6 +96,16 @@ type flowFeature struct {
 	Psh float64
 	//tcp urg字段数据包占比
 	Urg float64
+
+	FinNum int
+	SynNum int
+	RstNum int
+	PshNum int
+	AckNum int
+	UrgNum int
+
+	UpInitWindow   uint16
+	DownInitWindow uint16
 }
 
 type packetFeature struct {
@@ -98,6 +126,7 @@ type packetFeature struct {
 	LenPayload     int    //udp alse has
 	Seqnum         uint32
 	Acknum         uint32
+	Window         uint16
 	Fin            bool
 	Syn            bool
 	Rst            bool
@@ -260,6 +289,7 @@ func packetsToFlow(config CONFIG, pFeature *packetFeature, mapAddress map[string
 // 提取数据包的基本特征
 func extractPacketFeature(packet *gopacket.Packet) packetFeature {
 	var feature packetFeature
+	//字节数
 	feature.LenPacket = len((*packet).Data())
 	feature.Timestamp = (*packet).Metadata().CaptureInfo.Timestamp
 
@@ -292,6 +322,7 @@ func extractPacketFeature(packet *gopacket.Packet) packetFeature {
 		if tcp != nil {
 			feature.Seqnum = tcp.Seq
 			feature.Acknum = tcp.Ack
+			feature.Window = tcp.Window
 			feature.Fin = tcp.FIN
 			feature.Syn = tcp.SYN
 			feature.Rst = tcp.RST
@@ -380,7 +411,7 @@ func saveFlowFeature(config CONFIG, file string, features []flowFeature) {
 	w := bufio.NewWriter(fHandle)
 	var one string
 	for i := 0; i < length; i++ {
-		if features[i].Packetnum <= 50 {
+		if features[i].PacketNum <= 50 {
 			continue
 		}
 		one = ""
@@ -389,27 +420,27 @@ func saveFlowFeature(config CONFIG, file string, features []flowFeature) {
 		one += strconv.FormatUint(uint64(features[i].Srcport), 10) + "\t"
 		one += strconv.FormatUint(uint64(features[i].Dstport), 10) + "\t"
 
-		one += strconv.Itoa(features[i].Downpacketnum) + "\t"
+		one += strconv.Itoa(features[i].DownPacketNum) + "\t"
 		one += strconv.Itoa(int(features[i].TransportLayer)) + "\t"
-		one += strconv.FormatFloat(features[i].Uptime_mean, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Uptime_std, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Uptime_min, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Uptime_max, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Downtime_mean, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Downtime_std, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Downtime_min, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Downtime_max, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Time_mean, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Time_std, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Time_min, 'f', 4, 64) + "\t"
-		one += strconv.FormatFloat(features[i].Time_max, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].UpTimeMean, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].UpTimeStd, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].UpTimeMin, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].UpTimeMax, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].DownTimeMean, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].DownTimeStd, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].DownTimeMin, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].DownTimeMax, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].TimeMean, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].TimeStd, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].TimeMin, 'f', 4, 64) + "\t"
+		one += strconv.FormatFloat(features[i].TimeMax, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].Duration, 'f', 4, 64) + "\t"
-		one += strconv.Itoa(features[i].Uppacketnum) + "\t"
-		one += strconv.FormatFloat(features[i].Uppacketnum_minute, 'f', 4, 64) + "\t"
-		one += strconv.Itoa(features[i].Downpacketnum) + "\t"
-		one += strconv.FormatFloat(features[i].Downpacketnum_minute, 'f', 4, 64) + "\t"
-		one += strconv.Itoa(features[i].Packetnum) + "\t"
-		one += strconv.FormatFloat(features[i].Packetnum_minute, 'f', 4, 64) + "\t"
+		one += strconv.Itoa(features[i].UpPacketNum) + "\t"
+		one += strconv.FormatFloat(features[i].UpPacketNumMinute, 'f', 4, 64) + "\t"
+		one += strconv.Itoa(features[i].DownPacketNum) + "\t"
+		one += strconv.FormatFloat(features[i].DownPacketNumMinute, 'f', 4, 64) + "\t"
+		one += strconv.Itoa(features[i].PacketNum) + "\t"
+		one += strconv.FormatFloat(features[i].PacketNumMinute, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].Downuppacket_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].Uphead_percent, 'f', 4, 64) + "\t"
 		one += strconv.FormatFloat(features[i].Downhead_percent, 'f', 4, 64) + "\t"
@@ -634,6 +665,16 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	fFeature.Srcport = flow[0].SrcPort
 	fFeature.Dstport = flow[0].DstPort
 	fFeature.TransportLayer = flow[0].TransportLayer
+
+	init := true
+	fFeature.UpInitWindow = flow[0].Window
+	fFeature.DownInitWindow = 0
+	fFeature.FinNum = 0
+	fFeature.SynNum = 0
+	fFeature.RstNum = 0
+	fFeature.PshNum = 0
+	fFeature.AckNum = 0
+	fFeature.UrgNum = 0
 	//上行时间间隔
 	var uptime_pre time.Time
 	var uptime_count float64 = 0
@@ -657,10 +698,31 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	var time_max float64 = 0
 	var time_min float64 = math.MaxFloat64
 
-	var one float64
+	var subTime float64
 
-	//数据包长度，包头长度
-	var packetlen int64
+	//上行数据包长度
+	var upPacketLenCount float64 = 0
+	var upPacketLenTotal float64 = 0
+	var upPacketLenVar float64 = 0
+	var upPacketLenMax float64 = 0
+	var upPacketLenMin float64 = math.MaxFloat64
+
+	//下行数据包长度
+	var downPacketLenCount float64 = 0
+	var downPacketLenTotal float64 = 0
+	var downPacketLenVar float64 = 0
+	var downPacketLenMax float64 = 0
+	var downPacketLenMin float64 = math.MaxFloat64
+
+	//数据包长度
+	var packetLenTotal float64 = 0
+	var packetLenCount float64 = 0
+	var packetLenVar float64 = 0
+	var packetLenMax float64 = 0
+	var packetLenMin float64 = math.MaxFloat64
+
+	//数据包长度，包头长度，单位为字节
+	var packetLen int64
 	var headlen int64
 	var uppacketlen int64
 	var upheadlen int64
@@ -672,63 +734,150 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 	var urgNum int64 = 0
 
 	for i := 0; i < length; i++ {
-		packetlen += int64(flow[i].LenPacket)
+		packetLen += int64(flow[i].LenPacket)
 		headlen += int64(flow[i].LenPacket - flow[i].LenPayload)
-		//计算上行时间间隔
-		if uptime_pre.IsZero() {
-			uppacketlen += int64(flow[i].LenPacket)
-			upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
-			uptime_pre = flow[i].Timestamp
-		} else if net.IP.Equal(flow[i].SrcIP, fFeature.Srcip) {
-			uppacketlen += int64(flow[i].LenPacket)
-			upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
-			uptime_count++
-			one = flow[i].Timestamp.Sub(uptime_pre).Seconds()
-			uptime_pre = flow[i].Timestamp
-			uptime_total += one
-			uptime_var += math.Pow(one, 2)
-			if one > uptime_max {
-				uptime_max = one
+
+		if init && net.IP.Equal(flow[i].SrcIP, fFeature.Dstip) {
+			fFeature.DownInitWindow = flow[i].Window
+			init = false
+		}
+
+		if net.IP.Equal(flow[i].SrcIP, fFeature.Srcip) {
+			if uptime_pre.IsZero() {
+				uppacketlen += int64(flow[i].LenPacket)
+				upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				uptime_pre = flow[i].Timestamp
+			} else {
+				//上行时间间隔
+				uppacketlen += int64(flow[i].LenPacket)
+				upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				uptime_count++
+				subTime = flow[i].Timestamp.Sub(uptime_pre).Seconds()
+				uptime_pre = flow[i].Timestamp
+				uptime_total += subTime
+				uptime_var += math.Pow(subTime, 2)
+				if subTime > uptime_max {
+					uptime_max = subTime
+				}
+				if subTime < uptime_min {
+					uptime_min = subTime
+				}
+
 			}
-			if one < uptime_min {
-				uptime_min = one
+
+			//上行数据包长度
+			upPacketLenCount++
+			upPacketLenTotal += float64(flow[i].LenPacket)
+			upPacketLenVar += math.Pow(float64(flow[i].LenPacket), 2)
+			if flow[i].LenPacket > int(upPacketLenMax) {
+				upPacketLenMax = float64(flow[i].LenPacket)
+			}
+			if flow[i].LenPacket < int(upPacketLenMin) {
+				upPacketLenMin = float64(flow[i].LenPacket)
+			}
+
+		} else {
+			if downtime_pre.IsZero() {
+				downpacketlen += int64(flow[i].LenPacket)
+				downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				downtime_pre = flow[i].Timestamp
+			} else {
+				//下行时间间隔
+				downpacketlen += int64(flow[i].LenPacket)
+				downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				downtime_count++
+				subTime = flow[i].Timestamp.Sub(downtime_pre).Seconds()
+				downtime_pre = flow[i].Timestamp
+				downtime_total += subTime
+				downtime_var += math.Pow(subTime, 2)
+				if subTime > downtime_max {
+					downtime_max = subTime
+				}
+				if subTime < downtime_min {
+					downtime_min = subTime
+				}
+			}
+			// 下行数据包长度
+			downPacketLenCount++
+			downPacketLenTotal += float64(flow[i].LenPacket)
+			downPacketLenVar += math.Pow(float64(flow[i].LenPacket), 2)
+			if flow[i].LenPacket > int(downPacketLenMax) {
+				downPacketLenMax = float64(flow[i].LenPacket)
+			}
+			if flow[i].LenPacket < int(downPacketLenMin) {
+				downPacketLenMin = float64(flow[i].LenPacket)
 			}
 		}
-		//计算下行时间间隔
-		if downtime_pre.IsZero() && net.IP.Equal(flow[i].SrcIP, fFeature.Dstip) {
-			downpacketlen += int64(flow[i].LenPacket)
-			downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
-			downtime_pre = flow[i].Timestamp
-		} else if bytes.Equal(flow[i].SrcIP, fFeature.Dstip) {
-			downpacketlen += int64(flow[i].LenPacket)
-			downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
-			downtime_count++
-			one = flow[i].Timestamp.Sub(downtime_pre).Seconds()
-			downtime_pre = flow[i].Timestamp
-			downtime_total += one
-			downtime_var += math.Pow(one, 2)
-			if one > downtime_max {
-				downtime_max = one
+
+		/*
+			if uptime_pre.IsZero() {
+				uppacketlen += int64(flow[i].LenPacket)
+				upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				uptime_pre = flow[i].Timestamp
+			} else if net.IP.Equal(flow[i].SrcIP, fFeature.Srcip) {
+				//计算上行时间间隔
+				uppacketlen += int64(flow[i].LenPacket)
+				upheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				uptime_count++
+				subTime = flow[i].Timestamp.Sub(uptime_pre).Seconds()
+				uptime_pre = flow[i].Timestamp
+				uptime_total += subTime
+				uptime_var += math.Pow(subTime, 2)
+				if subTime > uptime_max {
+					uptime_max = subTime
+				}
+				if subTime < uptime_min {
+					uptime_min = subTime
+				}
 			}
-			if one < downtime_min {
-				downtime_min = one
+			if downtime_pre.IsZero() && net.IP.Equal(flow[i].SrcIP, fFeature.Dstip) {
+				downpacketlen += int64(flow[i].LenPacket)
+				downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				downtime_pre = flow[i].Timestamp
+			} else if bytes.Equal(flow[i].SrcIP, fFeature.Dstip) {
+				//计算下行时间间隔
+				downpacketlen += int64(flow[i].LenPacket)
+				downheadlen += int64(flow[i].LenPacket - flow[i].LenPayload)
+				downtime_count++
+				subTime = flow[i].Timestamp.Sub(downtime_pre).Seconds()
+				downtime_pre = flow[i].Timestamp
+				downtime_total += subTime
+				downtime_var += math.Pow(subTime, 2)
+				if subTime > downtime_max {
+					downtime_max = subTime
+				}
+				if subTime < downtime_min {
+					downtime_min = subTime
+				}
+
+				//计算下行数据包长度
 			}
-		}
+		*/
 		//时间间隔
 		if time_pre.IsZero() {
 			time_pre = flow[i].Timestamp
 		} else {
-			one = flow[i].Timestamp.Sub(time_pre).Seconds()
+			subTime = flow[i].Timestamp.Sub(time_pre).Seconds()
 			time_pre = flow[i].Timestamp
-			time_total += one
-			time_var += math.Pow(one, 2)
-			if one > time_max {
-				time_max = one
+			time_total += subTime
+			time_var += math.Pow(subTime, 2)
+			if subTime > time_max {
+				time_max = subTime
 			}
-			if one < time_min {
-				time_min = one
+			if subTime < time_min {
+				time_min = subTime
 			}
 		}
+		packetLenCount++
+		packetLenTotal += float64(flow[i].LenPacket)
+		packetLenVar += math.Pow(float64(flow[i].LenPacket), 2)
+		if flow[i].LenPacket > int(packetLenMax) {
+			packetLenMax = float64(flow[i].LenPacket)
+		}
+		if flow[i].LenPacket < int(packetLenMin) {
+			packetLenMin = float64(flow[i].LenPacket)
+		}
+
 		if len(fFeature.Servername) == 0 && len(flow[i].Servername) != 0 {
 			fFeature.Servername = flow[i].Servername
 		}
@@ -736,51 +885,82 @@ func extractFlowFeature(flow []packetFeature, fFeature *flowFeature) {
 
 		if flow[i].Psh {
 			pshNum++
+			fFeature.PshNum++
 		}
 		if flow[i].Urg {
 			urgNum++
+			fFeature.UrgNum++
+		}
+		if flow[i].Fin {
+			fFeature.FinNum++
+		}
+		if flow[i].Syn {
+			fFeature.SynNum++
+		}
+		if flow[i].Rst {
+			fFeature.RstNum++
+		}
+		if flow[i].Ack {
+			fFeature.AckNum++
 		}
 	}
+	//时间间隔
 	if uptime_min == math.MaxFloat64 {
-		fFeature.Uptime_min = 0
+		fFeature.UpTimeMin = 0
 	} else {
-		fFeature.Uptime_min = uptime_min
+		fFeature.UpTimeMin = uptime_min
 	}
-	fFeature.Uptime_max = uptime_max
+	fFeature.UpTimeMax = uptime_max
 	if uptime_count != 0 {
-		fFeature.Uptime_mean = uptime_total / uptime_count
-		fFeature.Uptime_std = uptime_var/uptime_count - math.Pow(fFeature.Uptime_mean, 2)
-		fFeature.Uptime_std = math.Sqrt(fFeature.Uptime_std)
+		fFeature.UpTimeMean = uptime_total / uptime_count
+		fFeature.UpTimeStd = uptime_var/uptime_count - math.Pow(fFeature.UpTimeMean, 2)
+		fFeature.UpTimeStd = math.Sqrt(fFeature.UpTimeStd)
 	}
-	fFeature.Downtime_max = downtime_max
+	fFeature.DownTimeMax = downtime_max
 	if downtime_min == math.MaxFloat64 {
-		fFeature.Downtime_min = 0
+		fFeature.DownTimeMin = 0
 	} else {
-		fFeature.Downtime_min = downtime_min
+		fFeature.DownTimeMin = downtime_min
 	}
 	if downtime_count != 0 {
-		fFeature.Downtime_mean = downtime_total / downtime_count
-		fFeature.Downtime_std = downtime_var/downtime_count - math.Pow(fFeature.Downtime_mean, 2)
-		fFeature.Downtime_std = math.Sqrt(fFeature.Downtime_std)
+		fFeature.DownTimeMean = downtime_total / downtime_count
+		fFeature.DownTimeStd = downtime_var/downtime_count - math.Pow(fFeature.DownTimeMean, 2)
+		fFeature.DownTimeStd = math.Sqrt(fFeature.DownTimeStd)
 	}
 
-	fFeature.Time_max = time_max
-	fFeature.Time_min = time_min
-	fFeature.Time_mean = time_total / float64(length-1)
-	fFeature.Time_std = time_var/float64(length-1) - math.Pow(fFeature.Time_mean, 2)
-	fFeature.Time_std = math.Sqrt(fFeature.Time_std)
+	fFeature.TimeMax = time_max
+	fFeature.TimeMin = time_min
+	fFeature.TimeMean = time_total / float64(length-1)
+	fFeature.TimeStd = time_var/float64(length-1) - math.Pow(fFeature.TimeMean, 2)
+	fFeature.TimeStd = math.Sqrt(fFeature.TimeStd)
+
+	//数据包长度
+	fFeature.UpPacketLenMax = upPacketLenMax
+	fFeature.UpPacketLenMin = upPacketLenMin
+	fFeature.UpPacketLenMean = upPacketLenTotal / upPacketLenCount
+	fFeature.UpPacketLenStd = upPacketLenVar/upPacketLenCount - math.Pow(fFeature.DownPacketLenMean, 2)
+
+	fFeature.DownPacketLenMax = downPacketLenMax
+	fFeature.DownPacketLenMin = downPacketLenMin
+	fFeature.DownPacketLenMean = downPacketLenTotal / downPacketLenCount
+	fFeature.DownPacketLenStd = downPacketLenVar/downPacketLenCount - math.Pow(fFeature.DownPacketLenMean, 2)
+
+	fFeature.PacketLenMax = packetLenMax
+	fFeature.PacketLenMin = packetLenMin
+	fFeature.PacketLenMean = packetLenTotal / packetLenCount
+	fFeature.PacketLenStd = packetLenVar/packetLenCount - math.Pow(fFeature.PacketLenMean, 2)
 
 	fFeature.Duration = flow[length-1].Timestamp.Sub(flow[0].Timestamp).Seconds()
-	fFeature.Uppacketnum = int(math.Floor(uptime_count + 1))
-	fFeature.Uppacketnum_minute = float64(fFeature.Uppacketnum) * 60 / fFeature.Duration
-	fFeature.Downpacketnum = int(math.Floor(downtime_count + 1))
-	fFeature.Downpacketnum_minute = float64(fFeature.Downpacketnum) * 60 / fFeature.Duration
-	fFeature.Packetnum = length
-	fFeature.Packetnum_minute = float64(fFeature.Packetnum) * 60 / fFeature.Duration
-	if fFeature.Uppacketnum == 0 {
+	fFeature.UpPacketNum = int(math.Floor(uptime_count + 1))
+	fFeature.UpPacketNumMinute = float64(fFeature.UpPacketNum) * 60 / fFeature.Duration
+	fFeature.DownPacketNum = int(math.Floor(downtime_count + 1))
+	fFeature.DownPacketNumMinute = float64(fFeature.DownPacketNum) * 60 / fFeature.Duration
+	fFeature.PacketNum = length
+	fFeature.PacketNumMinute = float64(fFeature.PacketNum) * 60 / fFeature.Duration
+	if fFeature.UpPacketNum == 0 {
 		fFeature.Downuppacket_percent = 0
 	} else {
-		fFeature.Downuppacket_percent = float64(fFeature.Downpacketnum) / float64(fFeature.Uppacketnum)
+		fFeature.Downuppacket_percent = float64(fFeature.DownPacketNum) / float64(fFeature.UpPacketNum)
 	}
 	if upheadlen == 0 {
 		fFeature.Uphead_percent = 0
